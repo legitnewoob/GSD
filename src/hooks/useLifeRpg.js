@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { api } from '../lib/api';
 import { computeLevels } from '../utils/xp';
-import { moodOptions, energyOptions, powerOptions } from '../utils/constants';
+import { MOOD_OPTIONS, ENERGY_OPTIONS, POWER_OPTIONS } from '../utils/constants';
 
 function sortByDate(entries) {
   return [...entries].sort((a, b) => a.date.localeCompare(b.date));
@@ -22,9 +22,9 @@ function fromApiEntry(raw) {
     userId: raw.userId,
     date: raw.date,
     day: raw.day,
-    mood: toOption(moodOptions, raw.moodScore ?? raw.moodLabel),
-    energy: toOption(energyOptions, raw.energyScore ?? raw.energyLabel),
-    power: toOption(powerOptions, raw.powerScore ?? raw.powerLabel),
+    mood: toOption(MOOD_OPTIONS, raw.moodScore ?? raw.moodLabel),
+    energy: toOption(ENERGY_OPTIONS, raw.energyScore ?? raw.energyLabel),
+    power: toOption(POWER_OPTIONS, raw.powerScore ?? raw.powerLabel),
     screenTime: raw.screenTime ?? '',
     money: raw.money ?? '',
     runWalk: raw.runWalk ?? '',
@@ -202,9 +202,9 @@ export function useLifeRpg() {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const entry = blankEntry(d, config);
-      entry.power = powerOptions[Math.floor(Math.random() * 5)];
-      entry.mood = moodOptions[Math.floor(Math.random() * 5)];
-      entry.energy = energyOptions[Math.floor(Math.random() * 5)];
+      entry.power = POWER_OPTIONS[Math.floor(Math.random() * 5)];
+      entry.mood = MOOD_OPTIONS[Math.floor(Math.random() * 5)];
+      entry.energy = ENERGY_OPTIONS[Math.floor(Math.random() * 5)];
       entry.money = Math.floor(Math.random() * 300) + 50;
       entry.screenTime = (Math.random() * 4 + 1).toFixed(1);
       entry.runWalk = Math.random() > 0.3 ? (Math.random() * 5).toFixed(1) : 0;

@@ -7,12 +7,7 @@ import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
-const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID;
-
-if (!DEFAULT_USER_ID) {
-  console.error('Missing DEFAULT_USER_ID in .env');
-  process.exit(1);
-}
+const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || '00000000-0000-0000-0000-000000000001';
 
 app.use(cors());
 app.use(express.json());

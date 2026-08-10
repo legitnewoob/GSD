@@ -256,7 +256,10 @@ export function DailyJournal({
                 type="number"
                 min={0}
                 value={draft[f.key] ?? ''}
-                onChange={(e) => updateField(f.key, e.target.value === '' ? '' : parseFloat(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateField(f.key, val === '' ? '' : f.key === 'steps' ? parseInt(val, 10) : parseFloat(val));
+                }}
                 className={inputBase}
               />
             </div>
