@@ -22,32 +22,32 @@ const APP_PASSWORD = process.env.APP_PASSWORD;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const FRONTEND_URL = process.env.FRONTEND_URL;
+const FRONTEND_URL = (process.env.FRONTEND_URL || '').replace(/\/+$/, '').toLowerCase();
 
-const allowedOrigins = [
-  FRONTEND_URL,
-  'http://localhost:5173',
-].filter(Boolean);
+const allowedOrigins = [FRONTEND_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests without an Origin header
+    // Allow requests without an Origin header (e.g. server-to-server, curl)
     if (!origin) {
       return callback(null, true);
     }
 
-    if (allowedOrigins.includes(origin)) {
+    // If FRONTEND_URL is unset, allow all origins as a debugging fallback
+    if (allowedOrigins.length === 0) {
+      console.warn('FRONTEND_URL is not set; allowing all CORS origins for debugging');
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin.toLowerCase())) {
       return callback(null, true);
     }
 
     console.warn(`Blocked CORS origin: ${origin}`);
     return callback(new Error('Not allowed by CORS'));
   },
-
   credentials: true,
-
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-
   allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
