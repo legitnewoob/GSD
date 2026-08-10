@@ -1,4 +1,4 @@
-const CACHE_NAME = 'life-rpg-v1';
+const CACHE_NAME = 'life-rpg-v2';
 const SHELL_ASSETS = ['/', '/index.html', '/manifest.json', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {

@@ -22,8 +22,6 @@ body {
   font-family: 'Segoe UI', system-ui, sans-serif;
   background: var(--bg-primary);
   color: var(--text);
-  overflow-x: hidden;
-  overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
 }
 
