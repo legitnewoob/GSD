@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: life-rpg-backend
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./server/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: life-rpg-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped

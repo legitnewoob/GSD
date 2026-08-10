@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const rawApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = rawApiUrl === '' ? '' : (rawApiUrl || 'http://localhost:4000');
 const TOKEN_KEY = 'life-rpg-token';
 
 let token = localStorage.getItem(TOKEN_KEY) || '';
