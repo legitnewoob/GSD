@@ -3,10 +3,19 @@ import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 
+
 const app = express();
-const prisma = new PrismaClient();
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const prisma = new PrismaClient({
+  adapter,
+});
 const PORT = process.env.PORT || 4000;
 const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || '00000000-0000-0000-0000-000000000001';
 const FRONTEND_URL = process.env.FRONTEND_URL;
