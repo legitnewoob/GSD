@@ -19,6 +19,7 @@ model User {
   entries       Entry[]
   budgetSetting BudgetSetting?
   expenses      Expense[]
+  todos         Todo[]
 
   @@map("users")
 }
@@ -139,4 +140,17 @@ model Expense {
   entry Entry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
 
   @@map("expenses")
+}
+
+model Todo {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  text        String
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("todos")
 }

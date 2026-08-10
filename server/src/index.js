@@ -8,8 +8,16 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || '00000000-0000-0000-0000-000000000001';
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
-app.use(cors());
+const allowedOrigins = FRONTEND_URL ? [FRONTEND_URL, 'http://localhost:5173'] : true;
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 async function getOrCreateUser() {
@@ -47,12 +55,13 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/config', async (req, res) => {
   try {
     const user = await getOrCreateUser();
-    const [habits, categories, budgetSetting] = await Promise.all([
+    const [habits, categories, budgetSetting, todos] = await Promise.all([
       prisma.habit.findMany({ where: { userId: user.id, isActive: true }, orderBy: { order: 'asc' } }),
       prisma.category.findMany({ where: { userId: user.id, isActive: true }, orderBy: { order: 'asc' } }),
       prisma.budgetSetting.findUnique({ where: { userId: user.id } }),
+      prisma.todo.findMany({ where: { userId: user.id, completed: false }, orderBy: { createdAt: 'asc' } }),
     ]);
-    res.json({ user, habits, categories, budgetSetting });
+    res.json({ user, habits, categories, budgetSetting, todos });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -219,6 +228,55 @@ app.post('/api/budget', async (req, res) => {
       update: { dailyLimit, monthlyLimit },
     });
     res.json(budget);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/todos', async (req, res) => {
+  try {
+    const user = await getOrCreateUser();
+    const todos = await prisma.todo.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'asc' } });
+    res.json(todos);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/todos', async (req, res) => {
+  try {
+    const user = await getOrCreateUser();
+    const { text } = req.body;
+    const todo = await prisma.todo.create({
+      data: { userId: user.id, text },
+    });
+    res.json(todo);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/todos/:id', async (req, res) => {
+  try {
+    const { text, completed } = req.body;
+    const todo = await prisma.todo.update({
+      where: { id: req.params.id },
+      data: { text, completed },
+    });
+    res.json(todo);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/todos/:id', async (req, res) => {
+  try {
+    await prisma.todo.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

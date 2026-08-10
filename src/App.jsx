@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard';
 import { GameDashboard } from './components/GameDashboard';
 import { WeeklyReview } from './components/WeeklyReview';
 import { Budget } from './components/Budget';
+import { Admin } from './components/Admin';
 
 function App() {
   const [activeTab, setActiveTab] = useState('daily');
@@ -23,9 +24,14 @@ function App() {
     getOrCreate,
     addHabit,
     updateHabit,
+    deleteHabit,
     addCategory,
     updateCategory,
+    deleteCategory,
     saveBudget,
+    addTodo,
+    toggleTodo,
+    deleteTodo,
   } = useLifeRpg();
 
   const fallbackEntry = getOrCreate(selectedDate);
@@ -73,6 +79,9 @@ function App() {
           onAddHabit={addHabit}
           onAddCategory={addCategory}
           onUpdateCategory={updateCategory}
+          onAddTodo={addTodo}
+          onToggleTodo={toggleTodo}
+          onDeleteTodo={deleteTodo}
         />
       );
     }
@@ -80,6 +89,16 @@ function App() {
     if (activeTab === 'game') return <GameDashboard entries={entries} />;
     if (activeTab === 'budget') return <Budget config={config} entries={entries} onSaveBudget={saveBudget} />;
     if (activeTab === 'weekly') return <WeeklyReview config={config} entries={entries} />;
+    if (activeTab === 'admin') {
+      return (
+        <Admin
+          config={config}
+          onUpdateCategory={updateCategory}
+          onDeleteCategory={deleteCategory}
+          onDeleteHabit={deleteHabit}
+        />
+      );
+    }
     return null;
   };
 

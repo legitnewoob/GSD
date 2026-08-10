@@ -24,4 +24,8 @@ export const api = {
   deleteCategory: (id) => request(`/api/categories/${id}`, { method: 'DELETE' }),
   getBudget: () => request('/api/budget'),
   saveBudget: (payload) => request('/api/budget', { method: 'POST', body: JSON.stringify(payload) }),
+  getTodos: () => request('/api/todos'),
+  addTodo: (payload) => request('/api/todos', { method: 'POST', body: JSON.stringify(payload) }),
+  updateTodo: (id, payload) => request(`/api/todos/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  deleteTodo: (id) => request(`/api/todos/${id}`, { method: 'DELETE' }),
 };

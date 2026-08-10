@@ -93,7 +93,7 @@ function blankEntry(date, config) {
 }
 
 export function useLifeRpg() {
-  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null });
+  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null, todos: [] });
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -110,6 +110,7 @@ export function useLifeRpg() {
           habits: cfg.habits,
           categories: cfg.categories,
           budgetSetting: cfg.budgetSetting,
+          todos: cfg.todos || [],
         });
         setEntries(rawEntries.map(fromApiEntry));
       } catch (err) {
@@ -251,9 +252,41 @@ export function useLifeRpg() {
     setConfig((c) => ({ ...c, categories: c.categories.map((x) => (x.id === saved.id ? saved : x)) }));
   }, []);
 
+  const deleteCategory = useCallback(async (id) => {
+    await api.deleteCategory(id);
+    setConfig((c) => ({ ...c, categories: c.categories.filter((x) => x.id !== id) }));
+  }, []);
+
+  const deleteHabit = useCallback(async (id) => {
+    await api.deleteHabit(id);
+    setConfig((c) => ({ ...c, habits: c.habits.filter((h) => h.id !== id) }));
+  }, []);
+
   const saveBudget = useCallback(async (settings) => {
     const saved = await api.saveBudget(settings);
     setConfig((c) => ({ ...c, budgetSetting: saved }));
+  }, []);
+
+  const addTodo = useCallback(async (text) => {
+    const todo = await api.addTodo({ text });
+    setConfig((c) => ({ ...c, todos: [...(c.todos || []), todo] }));
+  }, []);
+
+  const toggleTodo = useCallback(async (id) => {
+    const todo = config.todos.find((t) => t.id === id);
+    if (!todo) return;
+    const saved = await api.updateTodo(id, { completed: !todo.completed });
+    setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === saved.id ? saved : t)) }));
+  }, [config.todos]);
+
+  const updateTodo = useCallback(async (id, text) => {
+    const saved = await api.updateTodo(id, { text });
+    setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === saved.id ? saved : t)) }));
+  }, []);
+
+  const deleteTodo = useCallback(async (id) => {
+    await api.deleteTodo(id);
+    setConfig((c) => ({ ...c, todos: c.todos.filter((t) => t.id !== id) }));
   }, []);
 
   return {
@@ -270,8 +303,14 @@ export function useLifeRpg() {
     clearAll,
     addHabit,
     updateHabit,
+    deleteHabit,
     addCategory,
     updateCategory,
+    deleteCategory,
     saveBudget,
+    addTodo,
+    toggleTodo,
+    updateTodo,
+    deleteTodo,
   };
 }

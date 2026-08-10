@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { MOOD_OPTIONS, ENERGY_OPTIONS, POWER_OPTIONS } from '../utils/constants';
-import { Check, Sword, Heart, Zap, Moon, Coins, Footprints, Scroll, Plus } from 'lucide-react';
+import { Check, Sword, Heart, Zap, Moon, Coins, Footprints, Scroll, Plus, Trash2 } from 'lucide-react';
 
 const inputBase =
   'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-game-text placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition';
@@ -16,10 +16,14 @@ export function DailyJournal({
   onAddHabit,
   onAddCategory,
   onUpdateCategory,
+  onAddTodo,
+  onToggleTodo,
+  onDeleteTodo,
 }) {
   const [draft, setDraft] = useState(entry);
   const [newHabit, setNewHabit] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [newTodo, setNewTodo] = useState('');
 
   useEffect(() => {
     setDraft(entry);
@@ -297,6 +301,62 @@ export function DailyJournal({
             rows={2}
             className={`${inputBase} resize-none`}
           />
+        </div>
+      </div>
+
+      <div className={panelBase}>
+        <div className="flex items-center gap-2 mb-4">
+          <Scroll className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Carry-Forward Tasks</h2>
+        </div>
+        <p className="text-game-dim text-sm mb-4">Small tasks that stay here each day until you cross them off.</p>
+        <div className="flex gap-2 mb-4">
+          <input
+            value={newTodo}
+            onChange={(e) => setNewTodo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newTodo.trim()) {
+                onAddTodo(newTodo.trim());
+                setNewTodo('');
+              }
+            }}
+            placeholder="e.g. Update resume"
+            className={`${inputBase} flex-1`}
+          />
+          <button
+            onClick={() => {
+              if (!newTodo.trim()) return;
+              onAddTodo(newTodo.trim());
+              setNewTodo('');
+            }}
+            className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 px-3 py-2 rounded-lg text-sm font-bold"
+          >
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </div>
+        <div className="space-y-2">
+          {(config.todos || [])
+            .filter((t) => !t.completed)
+            .map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-3 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2"
+              >
+                <button
+                  onClick={() => onToggleTodo(t.id)}
+                  className="w-5 h-5 rounded border border-slate-600 flex items-center justify-center hover:border-emerald-500"
+                >
+                  {t.completed && <Check className="w-3.5 h-3.5 text-emerald-500" />}
+                </button>
+                <span className="flex-1 text-sm text-game-text">{t.text}</span>
+                <button
+                  onClick={() => onDeleteTodo(t.id)}
+                  className="text-slate-500 hover:text-red-400 transition"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
         </div>
       </div>
     </div>

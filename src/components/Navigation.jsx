@@ -1,4 +1,4 @@
-import { Calendar, LayoutDashboard, Trophy, BarChart2, Crown, Wallet, Save } from 'lucide-react';
+import { Calendar, LayoutDashboard, Trophy, BarChart2, Crown, Wallet, Save, Settings } from 'lucide-react';
 
 const tabs = [
   { key: 'daily', label: 'Daily Quest', icon: Calendar },
@@ -6,6 +6,7 @@ const tabs = [
   { key: 'game', label: 'Hero', icon: Trophy },
   { key: 'budget', label: 'Budget', icon: Wallet },
   { key: 'weekly', label: 'Log', icon: BarChart2 },
+  { key: 'admin', label: 'Settings', icon: Settings },
 ];
 
 export function Navigation({ active, onChange, entries = [], saving = false }) {
