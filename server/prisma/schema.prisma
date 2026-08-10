@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String?  @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  habits        Habit[]
+  categories    Category[]
+  entries       Entry[]
+  budgetSetting BudgetSetting?
+  expenses      Expense[]
+
+  @@map("users")
+}
+
+model Habit {
+  id       String  @id @default(cuid())
+  userId   String  @map("user_id")
+  name     String
+  icon     String?
+  order    Int     @default(0)
+  xpValue  Int     @default(5) @map("xp_value")
+  isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entryHabits EntryHabit[]
+
+  @@map("habits")
+}
+
+model Category {
+  id            String  @id @default(cuid())
+  userId        String  @map("user_id")
+  key           String? // stable slug like 'sleep', 'exercise', 'deep_work'
+  name          String
+  color         String?
+  expectedHours Float?  @map("expected_hours")
+  order         Int     @default(0)
+  isActive      Boolean @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entryCategories EntryCategory[]
+
+  @@map("categories")
+}
+
+model Entry {
+  id            String  @id @default(cuid())
+  userId        String  @map("user_id")
+  date          String // YYYY-MM-DD
+  day           String?
+  moodLabel     String? @map("mood_label")
+  energyLabel   String? @map("energy_label")
+  powerLabel    String? @map("power_label")
+  moodScore     Int?    @map("mood_score")
+  energyScore   Int?    @map("energy_score")
+  powerScore    Int?    @map("power_score")
+  screenTime    Float?  @map("screen_time")
+  money         Float?
+  runWalk       Float?  @map("run_walk")
+  steps         Int?
+  bigWin        String? @map("big_win")
+  drain         String?
+  tomorrow      String?
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habits      EntryHabit[]
+  categories  EntryCategory[]
+  expenses    Expense[]
+
+  @@unique([userId, date])
+  @@map("entries")
+}
+
+model EntryHabit {
+  id        String  @id @default(cuid())
+  entryId   String  @map("entry_id")
+  habitId   String  @map("habit_id")
+  completed Boolean @default(false)
+
+  entry Entry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, habitId])
+  @@map("entry_habits")
+}
+
+model EntryCategory {
+  id         String  @id @default(cuid())
+  entryId    String  @map("entry_id")
+  categoryId String  @map("category_id")
+  hours      Float?
+
+  entry    Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, categoryId])
+  @@map("entry_categories")
+}
+
+model BudgetSetting {
+  id           String  @id @default(cuid())
+  userId       String  @unique @map("user_id")
+  dailyLimit   Float?  @map("daily_limit")
+  monthlyLimit Float?  @map("monthly_limit")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("budget_settings")
+}
+
+model Expense {
+  id          String  @id @default(cuid())
+  userId      String  @map("user_id")
+  entryId     String? @map("entry_id")
+  amount      Float
+  description String?
+  date        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entry Entry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@map("expenses")
+}

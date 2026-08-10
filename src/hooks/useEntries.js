@@ -1,0 +1,273 @@
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { format } from 'date-fns';
+import { api } from '../lib/api';
+import { computeLevels } from '../utils/xp';
+import { moodOptions, energyOptions, powerOptions } from '../utils/constants';
+
+function sortByDate(entries) {
+  return [...entries].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function toOption(optionList, labelOrValue) {
+  if (!labelOrValue) return null;
+  if (typeof labelOrValue === 'object') return labelOrValue;
+  const byValue = optionList.find((o) => String(o.value) === String(labelOrValue));
+  if (byValue) return byValue;
+  return optionList.find((o) => o.label === labelOrValue) || null;
+}
+
+function fromApiEntry(raw) {
+  return {
+    id: raw.id,
+    userId: raw.userId,
+    date: raw.date,
+    day: raw.day,
+    mood: toOption(moodOptions, raw.moodLabel),
+    energy: toOption(energyOptions, raw.energyLabel),
+    power: toOption(powerOptions, raw.powerLabel),
+    screenTime: raw.screenTime ?? '',
+    money: raw.money ?? '',
+    runWalk: raw.runWalk ?? '',
+    steps: raw.steps ?? '',
+    bigWin: raw.bigWin || '',
+    drain: raw.drain || '',
+    tomorrow: raw.tomorrow || '',
+    notes: raw.notes || '',
+    habits: Object.fromEntries(
+      (raw.habits || []).map((h) => [h.habitId || h.habit?.id, h.completed])
+    ),
+    categories: Object.fromEntries(
+      (raw.categories || []).map((c) => [
+        c.categoryId || c.category?.id,
+        { hours: c.hours ?? '', key: c.category?.key, name: c.category?.name, color: c.category?.color },
+      ])
+    ),
+  };
+}
+
+function toApiPayload(entry) {
+  return {
+    id: entry.id,
+    date: entry.date,
+    day: entry.day,
+    mood: entry.mood,
+    energy: entry.energy,
+    power: entry.power,
+    screenTime: entry.screenTime,
+    money: entry.money,
+    runWalk: entry.runWalk,
+    steps: entry.steps,
+    bigWin: entry.bigWin,
+    drain: entry.drain,
+    tomorrow: entry.tomorrow,
+    notes: entry.notes,
+    habits: entry.habits,
+    categories: entry.categories,
+  };
+}
+
+function blankEntry(date, config) {
+  const iso = format(date, 'yyyy-MM-dd');
+  return {
+    id: '',
+    date: iso,
+    day: format(date, 'EEEE'),
+    mood: null,
+    energy: null,
+    power: null,
+    screenTime: '',
+    money: '',
+    runWalk: '',
+    steps: '',
+    bigWin: '',
+    drain: '',
+    tomorrow: '',
+    notes: '',
+    habits: Object.fromEntries((config.habits || []).map((h) => [h.id, false])),
+    categories: Object.fromEntries(
+      (config.categories || []).map((c) => [c.id, { hours: '', key: c.key, name: c.name, color: c.color }])
+    ),
+  };
+}
+
+export function useLifeRpg() {
+  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null });
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const saveQueue = useRef({});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      try {
+        const [cfg, rawEntries] = await Promise.all([api.getConfig(), api.getEntries()]);
+        if (cancelled) return;
+        setConfig({
+          habits: cfg.habits,
+          categories: cfg.categories,
+          budgetSetting: cfg.budgetSetting,
+        });
+        setEntries(rawEntries.map(fromApiEntry));
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    init();
+    return () => { cancelled = true; };
+  }, []);
+
+  const entriesWithXp = useMemo(() => computeLevels(sortByDate(entries)), [entries]);
+
+  const persist = useCallback(async (entry) => {
+    setSaving(true);
+    try {
+      const saved = await api.saveEntry(toApiPayload(entry));
+      setEntries((prev) => {
+        const index = prev.findIndex((e) => e.date === saved.date);
+        const mapped = fromApiEntry(saved);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = mapped;
+          return next;
+        }
+        return [...prev, mapped];
+      });
+    } catch (err) {
+      console.error('Save failed', err);
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  const scheduleSave = useCallback((entry) => {
+    const key = entry.date;
+    if (saveQueue.current[key]) clearTimeout(saveQueue.current[key]);
+    saveQueue.current[key] = setTimeout(() => persist(entry), 800);
+  }, [persist]);
+
+  const save = useCallback(
+    (entry) => {
+      setEntries((prev) => {
+        const index = prev.findIndex((e) => e.date === entry.date);
+        if (index >= 0) {
+          const next = [...prev];
+          next[index] = entry;
+          scheduleSave(entry);
+          return next;
+        }
+        scheduleSave(entry);
+        return [...prev, entry];
+      });
+    },
+    [scheduleSave]
+  );
+
+  const remove = useCallback(async (id) => {
+    await api.deleteEntry(id);
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
+  const getOrCreate = useCallback(
+    (date) => {
+      const iso = format(date, 'yyyy-MM-dd');
+      const existing = entries.find((e) => e.date === iso);
+      if (existing) return existing;
+      return blankEntry(date, config);
+    },
+    [entries, config]
+  );
+
+  const startFresh = useCallback(
+    (date = new Date()) => {
+      const entry = blankEntry(date, config);
+      save(entry);
+    },
+    [config, save]
+  );
+
+  const seedDemo = useCallback(async () => {
+    // Minimal demo: create a few sample days. Replace with richer data if needed.
+    const today = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const entry = blankEntry(d, config);
+      entry.power = powerOptions[Math.floor(Math.random() * 5)];
+      entry.mood = moodOptions[Math.floor(Math.random() * 5)];
+      entry.energy = energyOptions[Math.floor(Math.random() * 5)];
+      entry.money = Math.floor(Math.random() * 300) + 50;
+      entry.screenTime = (Math.random() * 4 + 1).toFixed(1);
+      entry.runWalk = Math.random() > 0.3 ? (Math.random() * 5).toFixed(1) : 0;
+      entry.steps = Math.floor(Math.random() * 10000) + 2000;
+      entry.bigWin = 'Demo win';
+      entry.drain = 'Demo drain';
+      entry.tomorrow = 'Demo target';
+      config.habits.forEach((h) => (entry.habits[h.id] = Math.random() > 0.4));
+      config.categories.forEach((c) => {
+        entry.categories[c.id] = { hours: (Math.random() * 3).toFixed(1), key: c.key, name: c.name, color: c.color };
+      });
+      await persist(entry);
+    }
+  }, [config, persist]);
+
+  const clearAll = useCallback(async () => {
+    await Promise.all(entries.map((e) => api.deleteEntry(e.id)));
+    setEntries([]);
+  }, [entries]);
+
+  const addHabit = useCallback(
+    async (name) => {
+      const habit = await api.saveHabit({ name, order: config.habits.length });
+      setConfig((c) => ({ ...c, habits: [...c.habits, habit] }));
+    },
+    [config.habits]
+  );
+
+  const updateHabit = useCallback(async (habit) => {
+    const saved = await api.saveHabit(habit);
+    setConfig((c) => ({ ...c, habits: c.habits.map((h) => (h.id === saved.id ? saved : h)) }));
+  }, []);
+
+  const addCategory = useCallback(
+    async (name) => {
+      const category = await api.saveCategory({ name, order: config.categories.length });
+      setConfig((c) => ({ ...c, categories: [...c.categories, category] }));
+    },
+    [config.categories]
+  );
+
+  const updateCategory = useCallback(async (category) => {
+    const saved = await api.saveCategory(category);
+    setConfig((c) => ({ ...c, categories: c.categories.map((x) => (x.id === saved.id ? saved : x)) }));
+  }, []);
+
+  const saveBudget = useCallback(async (settings) => {
+    const saved = await api.saveBudget(settings);
+    setConfig((c) => ({ ...c, budgetSetting: saved }));
+  }, []);
+
+  return {
+    config,
+    entries: entriesWithXp,
+    loading,
+    saving,
+    error,
+    save,
+    remove,
+    getOrCreate,
+    startFresh,
+    seedDemo,
+    clearAll,
+    addHabit,
+    updateHabit,
+    addCategory,
+    updateCategory,
+    saveBudget,
+  };
+}
