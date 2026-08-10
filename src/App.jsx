@@ -111,14 +111,8 @@ function AppContent() {
       <main className="flex-1 pb-12">{renderTab()}</main>
       {entries.length > 0 && (
         <footer className="bg-game-panel border-t border-game-border py-4 px-6">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-game-dim">
+          <div className="max-w-6xl mx-auto text-center text-sm text-game-dim">
             <span>Connected to Supabase via backend.</span>
-            <button
-              onClick={clearAll}
-              className="text-red-500 hover:text-red-400 font-medium"
-            >
-              Reset Adventure
-            </button>
           </div>
         </footer>
       )}
