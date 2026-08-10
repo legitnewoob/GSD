@@ -16,11 +16,22 @@
   --success: #22c55e;
 }
 
+html,
 body {
   margin: 0;
   font-family: 'Segoe UI', system-ui, sans-serif;
   background: var(--bg-primary);
   color: var(--text);
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+textarea,
+select {
+  touch-action: manipulation;
 }
 
 #root {

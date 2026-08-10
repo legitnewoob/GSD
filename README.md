@@ -15,6 +15,9 @@ A gamified daily journal with RPG stats, charts, budgets and Supabase-backed per
 - **Hero (Game)**: level, XP bar, daily XP loot and quest history.
 - **Treasury (Budget)**: daily spend chart, limit tracking and spending log.
 - **Adventure Log**: weekly summaries.
+- **Carry-Forward Tasks**: small todos that stay visible each day until you cross them off.
+- **Settings / Admin**: adjust expected hours per category and remove habits/categories.
+- **PWA**: can be installed on your phone's home screen.
 
 ## Setup
 

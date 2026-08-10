@@ -1,0 +1,19 @@
+{
+  "short_name": "LifeRPG",
+  "name": "Life RPG",
+  "description": "Gamified daily journal, habits and budget tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
