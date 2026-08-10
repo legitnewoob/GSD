@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLifeRpg } from './hooks/useLifeRpg';
+import { api } from './lib/api';
 import { Navigation } from './components/Navigation';
 import { DailyJournal } from './components/DailyJournal';
 import { Dashboard } from './components/Dashboard';
@@ -7,8 +8,9 @@ import { GameDashboard } from './components/GameDashboard';
 import { WeeklyReview } from './components/WeeklyReview';
 import { Budget } from './components/Budget';
 import { Admin } from './components/Admin';
+import { Login } from './components/Login';
 
-function App() {
+function AppContent() {
   const [activeTab, setActiveTab] = useState('daily');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const {
@@ -18,7 +20,6 @@ function App() {
     saving,
     error,
     save,
-    seedDemo,
     startFresh,
     clearAll,
     getOrCreate,
@@ -49,13 +50,7 @@ function App() {
       <p className="text-game-dim mb-8">
         Track your daily habits, sleep, power and time to level up your hero. Data is saved to your Supabase backend.
       </p>
-      <div className="flex flex-col sm:flex-row justify-center gap-3">
-        <button
-          onClick={seedDemo}
-          className="bg-gradient-to-r from-amber-600 to-amber-400 hover:from-amber-500 hover:to-amber-300 text-slate-900 font-black px-6 py-3 rounded-lg transition shadow-glow uppercase tracking-wide"
-        >
-          Load 7-day demo
-        </button>
+      <div className="flex justify-center">
         <button
           onClick={() => startFresh(new Date())}
           className="bg-slate-800 border border-slate-600 hover:border-amber-500/50 hover:bg-slate-700 text-game-text font-bold px-6 py-3 rounded-lg transition"
@@ -129,6 +124,37 @@ function App() {
       )}
     </div>
   );
+}
+
+function App() {
+  const [token, setToken] = useState(api.getToken());
+  const [requiresAuth, setRequiresAuth] = useState(null);
+
+  useEffect(() => {
+    api.authStatus()
+      .then((status) => setRequiresAuth(status.requiresAuth))
+      .catch(() => setRequiresAuth(false));
+  }, []);
+
+  const handleLogin = async (password) => {
+    const { token } = await api.login(password);
+    api.setToken(token);
+    setToken(token);
+  };
+
+  if (requiresAuth === null) {
+    return (
+      <div className="min-h-screen bg-game-bg flex items-center justify-center">
+        <div className="text-game-gold font-black text-xl text-glow">Checking realm gate...</div>
+      </div>
+    );
+  }
+
+  if (requiresAuth && !token) {
+    return <Login onLogin={handleLogin} />;
+  }
+
+  return <AppContent />;
 }
 
 export default App

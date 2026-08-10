@@ -47,7 +47,6 @@ function fromApiEntry(raw) {
 
 function toApiPayload(entry) {
   return {
-    id: entry.id,
     date: entry.date,
     day: entry.day,
     mood: entry.mood,

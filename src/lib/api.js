@@ -1,11 +1,22 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const TOKEN_KEY = 'life-rpg-token';
+
+let token = localStorage.getItem(TOKEN_KEY) || '';
 
 async function request(path, options = {}) {
   const url = `${API_URL}${path}`;
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (token && !['/', '/api/health', '/api/auth-status', '/api/login'].includes(path)) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
     ...options,
   });
+  if (res.status === 401) {
+    localStorage.removeItem(TOKEN_KEY);
+    token = '';
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API ${path} failed: ${res.status} ${text}`);
@@ -14,6 +25,16 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  setToken(t) {
+    token = t || '';
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  },
+  getToken() {
+    return token;
+  },
+  authStatus: () => request('/api/auth-status'),
+  login: (password) => request('/api/login', { method: 'POST', body: JSON.stringify({ password }) }),
   getConfig: () => request('/api/config'),
   getEntries: () => request('/api/entries'),
   saveEntry: (payload) => request('/api/entries', { method: 'POST', body: JSON.stringify(payload) }),

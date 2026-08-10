@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 
@@ -9,6 +10,9 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || '00000000-0000-0000-0000-000000000001';
 const FRONTEND_URL = process.env.FRONTEND_URL;
+const APP_PASSWORD = process.env.APP_PASSWORD;
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const allowedOrigins = FRONTEND_URL ? [FRONTEND_URL, 'http://localhost:5173'] : true;
 
@@ -20,12 +24,48 @@ app.use(
 );
 app.use(express.json());
 
-async function getOrCreateUser() {
-  let user = await prisma.user.findUnique({ where: { id: DEFAULT_USER_ID } });
+function signToken(payload) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify({ ...payload, exp: Date.now() + TOKEN_TTL_MS })).toString('base64url');
+  const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${body}`).digest('base64url');
+  return `${header}.${body}.${sig}`;
+}
+
+function verifyToken(token) {
+  try {
+    const [h, b, s] = token.split('.');
+    if (!h || !b || !s) return null;
+    const expected = crypto.createHmac('sha256', JWT_SECRET).update(`${h}.${b}`).digest('base64url');
+    if (s !== expected) return null;
+    const payload = JSON.parse(Buffer.from(b, 'base64url').toString());
+    if (payload.exp && payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function requireAuth(req, res, next) {
+  if (!APP_PASSWORD) {
+    req.userId = DEFAULT_USER_ID;
+    return next();
+  }
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+  const payload = verifyToken(token);
+  if (!payload || payload.userId !== DEFAULT_USER_ID) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  req.userId = payload.userId;
+  next();
+}
+
+async function getOrCreateUser(userId) {
+  let user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     user = await prisma.user.create({
       data: {
-        id: DEFAULT_USER_ID,
+        id: userId,
         name: 'Hero',
       },
     });
@@ -50,11 +90,25 @@ async function getOrCreateUser() {
   return user;
 }
 
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health' || req.path === '/login' || req.path === '/auth-status') return next();
+  requireAuth(req, res, next);
+});
+
+app.get('/api/health', (req, res) => res.json({ ok: true, protected: Boolean(APP_PASSWORD) }));
+
+app.get('/api/auth-status', (req, res) => res.json({ requiresAuth: Boolean(APP_PASSWORD) }));
+
+app.post('/api/login', (req, res) => {
+  if (!APP_PASSWORD) return res.json({ token: signToken({ userId: DEFAULT_USER_ID }) });
+  const { password } = req.body;
+  if (password !== APP_PASSWORD) return res.status(401).json({ error: 'Invalid password' });
+  res.json({ token: signToken({ userId: DEFAULT_USER_ID }) });
+});
 
 app.get('/api/config', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const [habits, categories, budgetSetting, todos] = await Promise.all([
       prisma.habit.findMany({ where: { userId: user.id, isActive: true }, orderBy: { order: 'asc' } }),
       prisma.category.findMany({ where: { userId: user.id, isActive: true }, orderBy: { order: 'asc' } }),
@@ -70,7 +124,7 @@ app.get('/api/config', async (req, res) => {
 
 app.get('/api/entries', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const entries = await prisma.entry.findMany({
       where: { userId: user.id },
       include: { habits: { include: { habit: true } }, categories: { include: { category: true } } },
@@ -85,13 +139,11 @@ app.get('/api/entries', async (req, res) => {
 
 app.post('/api/entries', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const payload = req.body;
     const date = payload.date;
 
     const entryData = {
-      userId: user.id,
-      date,
       day: payload.day || null,
       moodLabel: payload.mood?.label || null,
       moodScore: payload.mood?.value ?? null,
@@ -111,7 +163,7 @@ app.post('/api/entries', async (req, res) => {
 
     const entry = await prisma.entry.upsert({
       where: { userId_date: { userId: user.id, date } },
-      create: entryData,
+      create: { userId: user.id, date, ...entryData },
       update: entryData,
     });
 
@@ -154,7 +206,7 @@ app.delete('/api/entries/:id', async (req, res) => {
 
 app.post('/api/habits', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const { id, name, order, xpValue } = req.body;
     const habit = await prisma.habit.upsert({
       where: { id: id || 'new' },
@@ -180,7 +232,7 @@ app.delete('/api/habits/:id', async (req, res) => {
 
 app.post('/api/categories', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const { id, key, name, color, expectedHours, order } = req.body;
     const category = await prisma.category.upsert({
       where: { id: id || 'new' },
@@ -206,7 +258,7 @@ app.delete('/api/categories/:id', async (req, res) => {
 
 app.get('/api/budget', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const [entries, budgetSetting] = await Promise.all([
       prisma.entry.findMany({ where: { userId: user.id }, select: { date: true, money: true }, orderBy: { date: 'asc' } }),
       prisma.budgetSetting.findUnique({ where: { userId: user.id } }),
@@ -220,7 +272,7 @@ app.get('/api/budget', async (req, res) => {
 
 app.post('/api/budget', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const { dailyLimit, monthlyLimit } = req.body;
     const budget = await prisma.budgetSetting.upsert({
       where: { userId: user.id },
@@ -236,7 +288,7 @@ app.post('/api/budget', async (req, res) => {
 
 app.get('/api/todos', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const todos = await prisma.todo.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'asc' } });
     res.json(todos);
   } catch (err) {
@@ -247,7 +299,7 @@ app.get('/api/todos', async (req, res) => {
 
 app.post('/api/todos', async (req, res) => {
   try {
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(req.userId);
     const { text } = req.body;
     const todo = await prisma.todo.create({
       data: { userId: user.id, text },
