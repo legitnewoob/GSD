@@ -18,19 +18,42 @@ const prisma = new PrismaClient({
 });
 const PORT = process.env.PORT || 4000;
 const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || '00000000-0000-0000-0000-000000000001';
-const FRONTEND_URL = process.env.FRONTEND_URL;
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const allowedOrigins = FRONTEND_URL ? [FRONTEND_URL, 'http://localhost:5173'] : true;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+const allowedOrigins = [
+  FRONTEND_URL,
+  'http://localhost:5173',
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests without an Origin header
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(`Blocked CORS origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
+
+  credentials: true,
+
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 
 function signToken(payload) {
