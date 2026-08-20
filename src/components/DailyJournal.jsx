@@ -59,7 +59,7 @@ function QuestDatePicker({ value, onChange }) {
   };
 
   return (
-    <div ref={pickerRef} className="relative inline-block text-left">
+    <div ref={pickerRef} className="relative w-full text-left sm:inline-block sm:w-auto">
       <button
         type="button"
         onClick={() => {
@@ -68,7 +68,7 @@ function QuestDatePicker({ value, onChange }) {
         }}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        className="group inline-flex min-w-[220px] items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-slate-900/90 px-3 py-2.5 text-left shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:border-amber-400/60 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+        className="group flex w-full items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-slate-900/90 px-3 py-2.5 text-left shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:border-amber-400/60 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/60 sm:inline-flex sm:min-w-[220px] sm:w-auto"
       >
         <span className="flex items-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-400/30 bg-amber-500/10 text-amber-400 transition group-hover:bg-amber-500/20">
@@ -83,7 +83,7 @@ function QuestDatePicker({ value, onChange }) {
       </button>
 
       {isOpen && (
-        <div role="dialog" aria-label="Choose quest date" className="absolute right-0 z-20 mt-2 w-[296px] rounded-2xl border border-slate-600/80 bg-slate-900 p-3 shadow-2xl shadow-black/50 ring-1 ring-amber-500/10">
+        <div role="dialog" aria-label="Choose quest date" className="absolute inset-x-0 z-20 mt-2 rounded-2xl border border-slate-600/80 bg-slate-900 p-3 shadow-2xl shadow-black/50 ring-1 ring-amber-500/10 sm:left-auto sm:right-0 sm:w-[296px]">
           <div className="mb-3 flex items-center justify-between px-1">
             <button
               type="button"
@@ -227,7 +227,7 @@ export function DailyJournal({
           <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">DAILY QUEST</h1>
           <p className="text-game-dim text-sm">Fill one card per evening. It auto-saves as you go.</p>
         </div>
-        <div className="sm:text-right">
+        <div className="w-full sm:w-auto sm:text-right">
           <QuestDatePicker value={draft.date} onChange={onDateChange} />
         </div>
       </div>
