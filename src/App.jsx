@@ -124,6 +124,14 @@ function App() {
   const [token, setToken] = useState(api.getToken());
   const [requiresAuth, setRequiresAuth] = useState(null);
 
+  // If the API tells us the token has expired,
+  // clear the React auth state and show the login screen.
+  useEffect(() => {
+    return api.onAuthExpired(() => {
+      setToken('');
+    });
+  }, []);
+
   useEffect(() => {
     api.authStatus()
       .then((status) => setRequiresAuth(status.requiresAuth))
@@ -139,7 +147,9 @@ function App() {
   if (requiresAuth === null) {
     return (
       <div className="min-h-screen bg-game-bg flex items-center justify-center">
-        <div className="text-game-gold font-black text-xl text-glow">Checking realm gate...</div>
+        <div className="text-game-gold font-black text-xl text-glow">
+          Checking realm gate...
+        </div>
       </div>
     );
   }
@@ -150,5 +160,4 @@ function App() {
 
   return <AppContent />;
 }
-
 export default App

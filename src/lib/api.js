@@ -3,6 +3,7 @@ const API_URL = rawApiUrl === '' ? '' : (rawApiUrl || 'http://localhost:4000');
 const TOKEN_KEY = 'life-rpg-token';
 
 let token = localStorage.getItem(TOKEN_KEY) || '';
+let onAuthExpired = null;
 
 async function request(path, options = {}) {
   const url = `${API_URL}${path}`;
@@ -14,10 +15,13 @@ async function request(path, options = {}) {
     headers,
     ...options,
   });
+
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
     token = '';
+    if (onAuthExpired) onAuthExpired();
   }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`API ${path} failed: ${res.status} ${text}`);
@@ -33,6 +37,15 @@ export const api = {
   },
   getToken() {
     return token;
+  },
+
+  onAuthExpired(callback) {
+    onAuthExpired = callback;
+    return () => {
+      if (onAuthExpired === callback) {
+        onAuthExpired = null;
+      }
+    };
   },
   authStatus: () => request('/api/auth-status'),
   login: (password) => request('/api/login', { method: 'POST', body: JSON.stringify({ password }) }),
