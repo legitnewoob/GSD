@@ -1,4 +1,4 @@
-const CACHE_NAME = 'life-rpg-v3';
+const CACHE_NAME = 'life-rpg-v4';
 const SHELL_ASSETS = ['/manifest.json', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {
@@ -14,8 +14,20 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((names) => Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))))
-      .then(() => self.clients.claim())
+      .then((names) => {
+        const isUpgrade = names.some((name) => name !== CACHE_NAME);
+        return Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name)))
+          .then(() => isUpgrade);
+      })
+      .then((isUpgrade) => self.clients.claim().then(() => isUpgrade))
+      // Older workers served index.html from cache first. Reload open clients once
+      // when replacing one so the new worker can fetch the latest release.
+      .then((isUpgrade) => {
+        if (!isUpgrade) return undefined;
+        return self.clients
+          .matchAll({ type: 'window', includeUncontrolled: true })
+          .then((clients) => Promise.allSettled(clients.map((client) => client.navigate(client.url))));
+      })
   );
 });
 
