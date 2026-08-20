@@ -1,5 +1,5 @@
-const CACHE_NAME = 'life-rpg-v2';
-const SHELL_ASSETS = ['/', '/index.html', '/manifest.json', '/favicon.svg', '/icons.svg'];
+const CACHE_NAME = 'life-rpg-v3';
+const SHELL_ASSETS = ['/manifest.json', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -30,6 +30,23 @@ self.addEventListener('fetch', (event) => {
 
   // Static assets: cache first, then network
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // HTML must come from the network first so a newly deployed index.html can
+  // point browsers at the latest Vite-generated asset files. Keep a cached
+  // copy only as an offline fallback.
+  if (request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
     return;
   }
 
