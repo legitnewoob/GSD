@@ -1,12 +1,155 @@
-import { useState, useEffect } from 'react';
-import { format, parseISO } from 'date-fns';
+import { useState, useEffect, useRef } from 'react';
+import {
+  addDays,
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isAfter,
+  isSameDay,
+  isSameMonth,
+  parseISO,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from 'date-fns';
 import { MOOD_OPTIONS, ENERGY_OPTIONS, POWER_OPTIONS } from '../utils/constants';
-import { Check, Sword, Heart, Zap, Moon, Coins, Footprints, Scroll, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Sword, Heart, Zap, Moon, Coins, Footprints, Scroll, Plus, Trash2, CalendarDays } from 'lucide-react';
 
 const inputBase =
   'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-game-text placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
+
+function QuestDatePicker({ value, onChange }) {
+  const selectedDate = parseISO(value);
+  const today = startOfDay(new Date());
+  const [isOpen, setIsOpen] = useState(false);
+  const [displayMonth, setDisplayMonth] = useState(startOfMonth(selectedDate));
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!pickerRef.current?.contains(event.target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const firstDay = startOfWeek(startOfMonth(displayMonth), { weekStartsOn: 0 });
+  const lastDay = endOfWeek(endOfMonth(displayMonth), { weekStartsOn: 0 });
+  const calendarDays = [];
+  for (let day = firstDay; day <= lastDay; day = addDays(day, 1)) calendarDays.push(day);
+
+  const chooseDate = (date) => {
+    if (isAfter(date, today)) return;
+    onChange(date);
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={pickerRef} className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={() => {
+          if (!isOpen) setDisplayMonth(startOfMonth(selectedDate));
+          setIsOpen((open) => !open);
+        }}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className="group inline-flex min-w-[220px] items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-slate-900/90 px-3 py-2.5 text-left shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition hover:border-amber-400/60 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+      >
+        <span className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-amber-400/30 bg-amber-500/10 text-amber-400 transition group-hover:bg-amber-500/20">
+            <CalendarDays className="h-4 w-4" />
+          </span>
+          <span>
+            <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-amber-400/80">Quest date</span>
+            <span className="block text-sm font-bold text-game-text">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
+          </span>
+        </span>
+        <ChevronRight className={['h-4 w-4 text-game-dim transition-transform', isOpen ? 'rotate-90 text-amber-400' : 'group-hover:text-amber-400'].join(' ')} />
+      </button>
+
+      {isOpen && (
+        <div role="dialog" aria-label="Choose quest date" className="absolute right-0 z-20 mt-2 w-[296px] rounded-2xl border border-slate-600/80 bg-slate-900 p-3 shadow-2xl shadow-black/50 ring-1 ring-amber-500/10">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <button
+              type="button"
+              aria-label="Previous month"
+              onClick={() => setDisplayMonth((month) => subMonths(month, 1))}
+              className="rounded-lg p-1.5 text-game-dim transition hover:bg-slate-800 hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-black tracking-wide text-game-text">{format(displayMonth, 'MMMM yyyy')}</span>
+            <button
+              type="button"
+              aria-label="Next month"
+              disabled={isSameMonth(displayMonth, today)}
+              onClick={() => setDisplayMonth((month) => addMonths(month, 1))}
+              className="rounded-lg p-1.5 text-game-dim transition hover:bg-slate-800 hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-game-dim"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+              <span key={`${day}-${index}`} className="py-1 text-[10px] font-black text-game-dim">{day}</span>
+            ))}
+            {calendarDays.map((day) => {
+              const selected = isSameDay(day, selectedDate);
+              const isToday = isSameDay(day, today);
+              const unavailable = isAfter(day, today);
+              const outsideMonth = !isSameMonth(day, displayMonth);
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  disabled={unavailable}
+                  aria-label={format(day, 'EEEE, MMMM d, yyyy')}
+                  aria-pressed={selected}
+                  onClick={() => chooseDate(day)}
+                  className={[
+                    'relative h-8 rounded-lg text-xs font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-500/70',
+                    selected ? 'bg-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.45)]' : 'text-game-text hover:bg-slate-800 hover:text-amber-300',
+                    isToday && !selected ? 'border border-amber-500/60 text-amber-400' : '',
+                    outsideMonth && !selected ? 'text-slate-600 hover:text-slate-400' : '',
+                    unavailable ? 'cursor-not-allowed opacity-25 hover:bg-transparent hover:text-game-text' : '',
+                  ].join(' ')}
+                >
+                  {format(day, 'd')}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 border-t border-slate-700 pt-3">
+            <button
+              type="button"
+              onClick={() => chooseDate(today)}
+              className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 py-2 text-xs font-black uppercase tracking-wider text-amber-400 transition hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+            >
+              Return to today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DailyJournal({
   config,
@@ -61,11 +204,6 @@ export function DailyJournal({
     commit(next);
   };
 
-  const handleDateChange = (e) => {
-    const date = parseISO(e.target.value);
-    onDateChange(date);
-  };
-
   const handleAddHabit = () => {
     if (!newHabit.trim()) return;
     onAddHabit(newHabit.trim());
@@ -82,7 +220,6 @@ export function DailyJournal({
   const categoriesList = config.categories || [];
   const completedHabits = habitsList.filter((h) => draft.habits[h.id]).length;
   const habitPct = habitsList.length ? (completedHabits / habitsList.length) * 100 : 0;
-
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -90,14 +227,8 @@ export function DailyJournal({
           <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">DAILY QUEST</h1>
           <p className="text-game-dim text-sm">Fill one card per evening. It auto-saves as you go.</p>
         </div>
-        <div>
-          <input
-            type="date"
-            value={draft.date}
-            max={format(new Date(), 'yyyy-MM-dd')}
-            onChange={handleDateChange}
-            className={inputBase}
-          />
+        <div className="sm:text-right">
+          <QuestDatePicker value={draft.date} onChange={onDateChange} />
         </div>
       </div>
 
