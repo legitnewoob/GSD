@@ -307,17 +307,30 @@ export function Dashboard({ config, entries: allEntries }) {
         </div>
 
         <div className={panelBase}>
-          <h2 className="text-lg font-black uppercase tracking-wide text-game-text mb-1">Habits / Day</h2>
-          <p className="text-xs text-game-dim mb-4">Dashed line = total habits ({habitsList.length})</p>
+          <h2 className="text-lg font-black uppercase tracking-wide text-game-text mb-4">Daily Habits Checked</h2>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={lineData} margin={{ left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                 <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
-                <YAxis domain={[0, habitsList.length]} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [v, 'Habits checked']} />
+                <YAxis domain={[0, habitsList.length]} ticks={[0, Math.round(habitsList.length * 0.5), habitsList.length]} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const v = payload[0].value;
+                    const pct = habitsList.length ? Math.round((v / habitsList.length) * 100) : 0;
+                    const color = pct >= 70 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444';
+                    return (
+                      <div style={tooltipStyle} className="rounded-lg px-3 py-2 text-sm">
+                        <div className="font-black text-game-text mb-1">{label}</div>
+                        <div style={{ color }} className="font-black text-base">{v} / {habitsList.length}</div>
+                        <div className="text-game-dim text-xs">{pct}% complete</div>
+                      </div>
+                    );
+                  }}
+                />
                 <ReferenceLine y={habitsList.length} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1.5} />
-                <Bar dataKey="habitsChecked" name="Habits" radius={[3, 3, 0, 0]}>
+                <Bar dataKey="habitsChecked" radius={[3, 3, 0, 0]}>
                   {lineData.map((d, i) => {
                     const pct = habitsList.length ? d.habitsChecked / habitsList.length : 0;
                     const fill = pct >= 0.7 ? '#22c55e' : pct >= 0.4 ? '#f59e0b' : '#ef4444';
