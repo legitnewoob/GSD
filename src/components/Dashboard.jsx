@@ -1,4 +1,5 @@
-import { format, parseISO, subDays, startOfWeek } from 'date-fns';
+import { useState } from 'react';
+import { format, parseISO, subDays, startOfWeek, isAfter, startOfDay } from 'date-fns';
 import {
   ResponsiveContainer,
   LineChart,
@@ -54,11 +55,17 @@ function computeStreak(entries) {
   return streak;
 }
 
-export function Dashboard({ config, entries }) {
+const RANGES = [
+  { label: '7D',  days: 7 },
+  { label: '30D', days: 30 },
+];
+
+export function Dashboard({ config, entries: allEntries }) {
+  const [range, setRange] = useState(30);
   const habitsList = config.habits || [];
   const categoriesList = config.categories || [];
 
-  if (!entries.length) {
+  if (!allEntries.length) {
     return (
       <div className="max-w-5xl mx-auto p-6">
         <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">STATS</h1>
@@ -66,6 +73,11 @@ export function Dashboard({ config, entries }) {
       </div>
     );
   }
+
+  const streak = computeStreak(allEntries);
+
+  const cutoff = startOfDay(subDays(new Date(), range - 1));
+  const entries = allEntries.filter((e) => !isAfter(cutoff, parseISO(e.date)));
 
   const days = entries.length;
 
@@ -105,10 +117,11 @@ export function Dashboard({ config, entries }) {
     ? ((checkedHabits / totalHabitCells) * 100).toFixed(1)
     : '0.0';
 
-  const streak = computeStreak(entries);
+  const xInterval = range === 7 ? 0 : 4;
+  const dateFormat = range === 7 ? 'EEE d' : 'dd MMM';
 
   const lineData = entries.map((e) => ({
-    date: format(parseISO(e.date), 'dd MMM'),
+    date: format(parseISO(e.date), dateFormat),
     power: e.power?.value || null,
     mood: e.mood?.value || null,
     energy: e.energy?.value || null,
@@ -153,9 +166,27 @@ export function Dashboard({ config, entries }) {
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">STATS</h1>
-        <p className="text-game-dim text-sm">Your hero's performance over time.</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">STATS</h1>
+          <p className="text-game-dim text-sm">Showing last {range} days · {days} entries</p>
+        </div>
+        <div className="flex gap-1 bg-slate-900 border border-slate-700 rounded-xl p-1 shrink-0">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              onClick={() => setRange(r.days)}
+              className={[
+                'px-4 py-1.5 rounded-lg text-sm font-black uppercase tracking-wide transition',
+                range === r.days
+                  ? 'bg-amber-500 text-slate-900'
+                  : 'text-game-dim hover:text-game-text',
+              ].join(' ')}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Row 1 */}
@@ -189,7 +220,7 @@ export function Dashboard({ config, entries }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
                 <YAxis domain={[0, 5]} ticks={[1,2,3,4,5]} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Line type="monotone" dataKey="power" stroke="#f59e0b" strokeWidth={3} dot={{ r: 3, fill: '#f59e0b' }} connectNulls name="Power" />
@@ -208,7 +239,7 @@ export function Dashboard({ config, entries }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
                 <YAxis domain={[0, 5]} ticks={[1,2,3,4,5]} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Line type="monotone" dataKey="mood" stroke="#ec4899" strokeWidth={2} dot={{ r: 3, fill: '#ec4899' }} connectNulls name="Mood" />
@@ -224,7 +255,7 @@ export function Dashboard({ config, entries }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
                 <YAxis domain={[0, 12]} tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v}h`, 'Sleep']} />
                 <Line type="monotone" dataKey="sleep" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 3, fill: '#8b5cf6' }} connectNulls />
@@ -239,7 +270,7 @@ export function Dashboard({ config, entries }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={lineData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
                 <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v}h`, 'Screen time']} />
                 <Bar dataKey="screen" fill="#64748b" radius={[3, 3, 0, 0]} name="Screen time" />
