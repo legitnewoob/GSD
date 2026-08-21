@@ -6,6 +6,8 @@ export {
   energyOptions as ENERGY_OPTIONS,
   powerOptions as POWER_OPTIONS,
   findOption,
+  getHabitGroup,
+  HABIT_GROUP_ORDER,
 } from '../../shared/constants.js';
 
 export const XP_LEVEL_THRESHOLD = 500;

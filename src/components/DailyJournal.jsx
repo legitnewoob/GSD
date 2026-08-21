@@ -14,8 +14,43 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { MOOD_OPTIONS, ENERGY_OPTIONS, POWER_OPTIONS } from '../utils/constants';
+import { MOOD_OPTIONS, ENERGY_OPTIONS, POWER_OPTIONS, getHabitGroup, HABIT_GROUP_ORDER } from '../utils/constants';
 import { Check, ChevronLeft, ChevronRight, Sword, Heart, Zap, Moon, Coins, Footprints, Scroll, Plus, Trash2, CalendarDays } from 'lucide-react';
+
+const LEVEL_COLORS = [
+  'bg-red-900/40 border-red-700/60 text-red-400',
+  'bg-orange-900/40 border-orange-700/50 text-orange-400',
+  'bg-yellow-900/40 border-yellow-700/50 text-yellow-400',
+  'bg-lime-900/40 border-lime-600/60 text-lime-400',
+  'bg-emerald-900/40 border-emerald-600/60 text-emerald-400',
+];
+
+function RatingPicker({ options, value, onSelect }) {
+  return (
+    <div className="flex gap-1.5">
+      {options.map((opt) => {
+        const selected = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onSelect(selected ? null : opt)}
+            title={opt.label}
+            className={[
+              'flex-1 flex flex-col items-center gap-0.5 py-2.5 rounded-lg border font-black transition',
+              selected
+                ? LEVEL_COLORS[opt.value - 1]
+                : 'border-slate-700 bg-slate-900 text-slate-500 hover:border-slate-500 hover:text-slate-300',
+            ].join(' ')}
+          >
+            <span className="text-base leading-none">{opt.value}</span>
+            <span className="text-[9px] uppercase tracking-wide leading-tight">{opt.short}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const inputBase =
   'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-game-text placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition';
@@ -247,25 +282,36 @@ export function DailyJournal({
             style={{ width: `${habitPct}%` }}
           />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {habitsList.map((h) => {
-            const checked = !!draft.habits[h.id];
+        <div className="space-y-4">
+          {HABIT_GROUP_ORDER.map((group) => {
+            const groupHabits = habitsList.filter((h) => getHabitGroup(h.name) === group);
+            if (groupHabits.length === 0) return null;
             return (
-              <button
-                key={h.id}
-                onClick={() => updateHabit(h.id, !checked)}
-                className={[
-                  'flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left text-sm transition font-bold',
-                  checked
-                    ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
-                    : 'bg-slate-900 border-slate-700 text-game-dim hover:border-amber-500/50 hover:text-game-text',
-                ].join(' ')}
-              >
-                <span className={['w-5 h-5 flex items-center justify-center rounded border text-sm', checked ? 'bg-emerald-500 border-emerald-500 text-slate-900' : 'border-slate-600'].join(' ')}>
-                  {checked && <Check className="w-3.5 h-3.5" />}
-                </span>
-                {h.name}
-              </button>
+              <div key={group}>
+                <div className="text-[10px] font-black uppercase tracking-widest text-game-dim/60 mb-2 pl-0.5">{group}</div>
+                <div className="flex flex-wrap gap-2">
+                  {groupHabits.map((h) => {
+                    const checked = !!draft.habits[h.id];
+                    return (
+                      <button
+                        key={h.id}
+                        onClick={() => updateHabit(h.id, !checked)}
+                        className={[
+                          'flex items-center gap-2 px-3 py-2 rounded-lg border text-left text-sm transition font-bold',
+                          checked
+                            ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
+                            : 'bg-slate-900 border-slate-700 text-game-dim hover:border-amber-500/50 hover:text-game-text',
+                        ].join(' ')}
+                      >
+                        <span className={['w-4 h-4 flex items-center justify-center rounded border', checked ? 'bg-emerald-500 border-emerald-500 text-slate-900' : 'border-slate-600'].join(' ')}>
+                          {checked && <Check className="w-3 h-3" />}
+                        </span>
+                        {h.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>
@@ -288,49 +334,34 @@ export function DailyJournal({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className={panelBase}>
-          <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-game-dim mb-2">
+          <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-game-dim mb-3">
             <Heart className="w-4 h-4 text-game-hp" /> Mood
           </label>
-          <select
-            value={draft.mood?.value || ''}
-            onChange={(e) => updateOption('mood', MOOD_OPTIONS, e.target.value)}
-            className={`${inputBase} appearance-none`}
-          >
-            <option value="">Select mood</option>
-            {MOOD_OPTIONS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <RatingPicker
+            options={MOOD_OPTIONS}
+            value={draft.mood?.value ?? null}
+            onSelect={(opt) => commit({ ...draft, mood: opt })}
+          />
         </div>
         <div className={panelBase}>
-          <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-game-dim mb-2">
+          <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-game-dim mb-3">
             <Zap className="w-4 h-4 text-game-mana" /> Energy
           </label>
-          <select
-            value={draft.energy?.value || ''}
-            onChange={(e) => updateOption('energy', ENERGY_OPTIONS, e.target.value)}
-            className={`${inputBase} appearance-none`}
-          >
-            <option value="">Select energy</option>
-            {ENERGY_OPTIONS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <RatingPicker
+            options={ENERGY_OPTIONS}
+            value={draft.energy?.value ?? null}
+            onSelect={(opt) => commit({ ...draft, energy: opt })}
+          />
         </div>
         <div className={panelBase}>
-          <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-game-dim mb-2">
+          <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-game-dim mb-3">
             <Sword className="w-4 h-4 text-game-gold" /> Power
           </label>
-          <select
-            value={draft.power?.value || ''}
-            onChange={(e) => updateOption('power', POWER_OPTIONS, e.target.value)}
-            className={`${inputBase} appearance-none`}
-          >
-            <option value="">Select power</option>
-            {POWER_OPTIONS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          <RatingPicker
+            options={POWER_OPTIONS}
+            value={draft.power?.value ?? null}
+            onSelect={(opt) => commit({ ...draft, power: opt })}
+          />
         </div>
       </div>
 
