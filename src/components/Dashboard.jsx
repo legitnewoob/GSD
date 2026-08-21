@@ -15,7 +15,7 @@ import {
   Cell,
   Label,
 } from 'recharts';
-import { specialCategoryKeys } from '../utils/constants';
+import { specialCategoryKeys, getHabitGroup, HABIT_GROUP_ORDER } from '../utils/constants';
 import { Calendar, Sword, Moon, Sparkles, Heart, Zap, Monitor, Footprints, Flame, TrendingUp } from 'lucide-react';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
@@ -138,8 +138,8 @@ export function Dashboard({ config, entries: allEntries }) {
 
   const habitData = habitsList.map((h) => {
     const completed = entries.reduce((sum, e) => sum + (e.habits[h.id] ? 1 : 0), 0);
-    const pct = days ? ((completed / days) * 100).toFixed(1) : 0;
-    return { name: h.name, value: Number(pct) };
+    const pct = days ? Number(((completed / days) * 100).toFixed(1)) : 0;
+    return { name: h.name, value: pct, group: getHabitGroup(h.name) };
   });
 
   const categoryTotals = categoriesList
@@ -272,18 +272,36 @@ export function Dashboard({ config, entries: allEntries }) {
           </div>
         </div>
 
-        <div className={panelBase}>
+        <div className={`${panelBase} lg:col-span-2`}>
           <h2 className="text-lg font-black uppercase tracking-wide text-game-text mb-4">Habit mastery</h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={habitData} layout="vertical" margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis type="number" domain={[0, 100]} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <YAxis type="category" dataKey="name" width={130} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Tooltip formatter={(v) => [`${v}%`, 'Mastery']} contentStyle={tooltipStyle} />
-                <Bar dataKey="value" fill="#f59e0b" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+            {HABIT_GROUP_ORDER.map((group) => {
+              const groupHabits = habitData.filter((h) => h.group === group).sort((a, b) => b.value - a.value);
+              if (!groupHabits.length) return null;
+              const groupAvg = Math.round(groupHabits.reduce((s, h) => s + h.value, 0) / groupHabits.length);
+              return (
+                <div key={group}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-game-dim">{group}</span>
+                    <span className={`text-[10px] font-black ${groupAvg >= 70 ? 'text-emerald-400' : groupAvg >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{groupAvg}% avg</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {groupHabits.map((h) => {
+                      const barColor = h.value >= 70 ? 'bg-emerald-500' : h.value >= 40 ? 'bg-amber-500' : 'bg-red-500';
+                      return (
+                        <div key={h.name} className="flex items-center gap-2">
+                          <span className="w-36 text-xs text-game-dim truncate shrink-0">{h.name}</span>
+                          <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${h.value}%` }} />
+                          </div>
+                          <span className={`w-9 text-right text-xs font-black shrink-0 ${h.value >= 70 ? 'text-emerald-400' : h.value >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{h.value}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
