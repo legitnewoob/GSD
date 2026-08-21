@@ -6,6 +6,19 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 
+const defaultBudgetCategories = [
+  { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
+  { name: 'Investments', type: 'fixed', budgetedAmount: 5000, order: 1 },
+  { name: 'Subscriptions', type: 'fixed', budgetedAmount: 500, order: 2 },
+  { name: 'Food', type: 'daily', budgetedAmount: 4000, order: 3 },
+  { name: 'Eating Out', type: 'daily', budgetedAmount: 3000, order: 4 },
+  { name: 'Petrol', type: 'daily', budgetedAmount: 1500, order: 5 },
+  { name: 'Outings', type: 'daily', budgetedAmount: 2000, order: 6 },
+  { name: 'Shopping', type: 'daily', budgetedAmount: 2000, order: 7 },
+  { name: 'Medical', type: 'daily', budgetedAmount: 1000, order: 8 },
+  { name: 'Emergency', type: 'fixed', budgetedAmount: 2000, order: 9 },
+];
+
 
 const app = express();
 
@@ -21,6 +34,10 @@ const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID || '00000000-0000-0000-0000-
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4000/api/integrations/google-fit/callback';
 
 const FRONTEND_URL = (process.env.FRONTEND_URL || '').replace(/\/+$/, '').toLowerCase();
 
@@ -123,7 +140,14 @@ async function getOrCreateUser(userId) {
 }
 
 app.use('/api', (req, res, next) => {
-  if (req.path === '/health' || req.path === '/login' || req.path === '/auth-status') return next();
+  if (
+    req.path === '/health' ||
+    req.path === '/login' ||
+    req.path === '/auth-status' ||
+    req.path === '/integrations/google-fit/auth' ||
+    req.path === '/integrations/google-fit/callback' ||
+    req.path === '/integrations/google-fit/debug'
+  ) return next();
   requireAuth(req, res, next);
 });
 
@@ -141,12 +165,27 @@ app.post('/api/login', (req, res) => {
 app.get('/api/config', async (req, res) => {
   try {
     const user = await getOrCreateUser(req.userId);
-    const [habits, categories, budgetSetting, todos] = await Promise.all([
+    const budgetInclude = {
+      budgetCategories: { where: { isActive: true }, orderBy: { order: 'asc' } },
+      creditCards: { where: { isActive: true }, orderBy: { order: 'asc' } },
+    };
+    const [habits, categories, todos] = await Promise.all([
       prisma.habit.findMany({ where: { userId: user.id, isActive: true }, orderBy: { order: 'asc' } }),
       prisma.category.findMany({ where: { userId: user.id, isActive: true }, orderBy: { order: 'asc' } }),
-      prisma.budgetSetting.findUnique({ where: { userId: user.id } }),
       prisma.todo.findMany({ where: { userId: user.id, completed: false }, orderBy: { createdAt: 'asc' } }),
     ]);
+    let budgetSetting = await prisma.budgetSetting.findUnique({ where: { userId: user.id }, include: budgetInclude });
+    if (!budgetSetting) {
+      budgetSetting = await prisma.budgetSetting.create({
+        data: { userId: user.id, budgetCategories: { create: defaultBudgetCategories } },
+        include: budgetInclude,
+      });
+    } else if (budgetSetting.budgetCategories.length === 0) {
+      await prisma.budgetCategory.createMany({
+        data: defaultBudgetCategories.map((c) => ({ ...c, budgetSettingId: budgetSetting.id })),
+      });
+      budgetSetting = await prisma.budgetSetting.findUnique({ where: { userId: user.id }, include: budgetInclude });
+    }
     res.json({ user, habits, categories, budgetSetting, todos });
   } catch (err) {
     console.error(err);
@@ -291,10 +330,38 @@ app.delete('/api/categories/:id', async (req, res) => {
 app.get('/api/budget', async (req, res) => {
   try {
     const user = await getOrCreateUser(req.userId);
-    const [entries, budgetSetting] = await Promise.all([
-      prisma.entry.findMany({ where: { userId: user.id }, select: { date: true, money: true }, orderBy: { date: 'asc' } }),
-      prisma.budgetSetting.findUnique({ where: { userId: user.id } }),
-    ]);
+    let budgetSetting = await prisma.budgetSetting.findUnique({
+      where: { userId: user.id },
+      include: {
+        budgetCategories: { where: { isActive: true }, orderBy: { order: 'asc' } },
+        creditCards: { where: { isActive: true }, orderBy: { order: 'asc' } },
+      },
+    });
+    if (!budgetSetting) {
+      budgetSetting = await prisma.budgetSetting.create({
+        data: { userId: user.id, budgetCategories: { create: defaultBudgetCategories } },
+        include: {
+          budgetCategories: { where: { isActive: true }, orderBy: { order: 'asc' } },
+          creditCards: { where: { isActive: true }, orderBy: { order: 'asc' } },
+        },
+      });
+    } else if (budgetSetting.budgetCategories.length === 0) {
+      await prisma.budgetCategory.createMany({
+        data: defaultBudgetCategories.map((c) => ({ ...c, budgetSettingId: budgetSetting.id })),
+      });
+      budgetSetting = await prisma.budgetSetting.findUnique({
+        where: { userId: user.id },
+        include: {
+          budgetCategories: { where: { isActive: true }, orderBy: { order: 'asc' } },
+          creditCards: { where: { isActive: true }, orderBy: { order: 'asc' } },
+        },
+      });
+    }
+    const entries = await prisma.entry.findMany({
+      where: { userId: user.id },
+      select: { date: true, money: true },
+      orderBy: { date: 'asc' },
+    });
     res.json({ entries, budgetSetting });
   } catch (err) {
     console.error(err);
@@ -305,13 +372,103 @@ app.get('/api/budget', async (req, res) => {
 app.post('/api/budget', async (req, res) => {
   try {
     const user = await getOrCreateUser(req.userId);
-    const { dailyLimit, monthlyLimit } = req.body;
+    const { monthlyIncome, cashBalance, bankBalance, salaryDay, lastSalaryCredit } = req.body;
+    const data = {};
+    if (monthlyIncome !== undefined) data.monthlyIncome = monthlyIncome;
+    if (cashBalance !== undefined) data.cashBalance = cashBalance;
+    if (bankBalance !== undefined) data.bankBalance = bankBalance;
+    if (salaryDay !== undefined) data.salaryDay = salaryDay;
+    if (lastSalaryCredit !== undefined) data.lastSalaryCredit = lastSalaryCredit;
     const budget = await prisma.budgetSetting.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, dailyLimit, monthlyLimit },
-      update: { dailyLimit, monthlyLimit },
+      create: { userId: user.id, ...data },
+      update: data,
+      include: {
+        budgetCategories: { where: { isActive: true }, orderBy: { order: 'asc' } },
+        creditCards: { where: { isActive: true }, orderBy: { order: 'asc' } },
+      },
     });
     res.json(budget);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Budget Categories
+app.post('/api/budget/categories', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    let budgetSetting = await prisma.budgetSetting.findUnique({ where: { userId: user.id } });
+    if (!budgetSetting) {
+      budgetSetting = await prisma.budgetSetting.create({ data: { userId: user.id } });
+    }
+    const { id, name, type, budgetedAmount, spentAmount, order } = req.body;
+    const category = await prisma.budgetCategory.upsert({
+      where: { id: id || 'new' },
+      create: { budgetSettingId: budgetSetting.id, name, type: type || 'daily', budgetedAmount: budgetedAmount || 0, spentAmount: spentAmount || 0, order: order ?? 0 },
+      update: { name, type: type || 'daily', budgetedAmount: budgetedAmount || 0, spentAmount: spentAmount !== undefined ? spentAmount : undefined, order: order ?? 0 },
+    });
+    res.json(category);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/budget/categories/:id', async (req, res) => {
+  try {
+    await prisma.budgetCategory.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Credit Cards
+app.post('/api/budget/credit-cards', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    let budgetSetting = await prisma.budgetSetting.findUnique({ where: { userId: user.id } });
+    if (!budgetSetting) {
+      budgetSetting = await prisma.budgetSetting.create({ data: { userId: user.id } });
+    }
+    const { id, name, currentBalance, creditLimit, rewardPoints, isPaid, order } = req.body;
+    const balance = isPaid ? 0 : (currentBalance || 0);
+    const card = await prisma.creditCard.upsert({
+      where: { id: id || 'new' },
+      create: { budgetSettingId: budgetSetting.id, name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, isPaid: isPaid || false, order: order ?? 0 },
+      update: { name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, isPaid: isPaid !== undefined ? isPaid : undefined, order: order ?? 0 },
+    });
+    res.json(card);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/budget/credit-cards/:id', async (req, res) => {
+  try {
+    await prisma.creditCard.update({ where: { id: req.params.id }, data: { isActive: false } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Clear Entry.money for a given month (default: current month)
+app.delete('/api/budget/spending', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { month } = req.query; // e.g. "2026-08"
+    const prefix = month || new Date().toISOString().slice(0, 7);
+    await prisma.entry.updateMany({
+      where: { userId: user.id, date: { startsWith: prefix } },
+      data: { money: null },
+    });
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -363,6 +520,187 @@ app.delete('/api/todos/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── Google Fit Integration ────────────────────────────────────────────────────
+
+app.get('/api/integrations/google-fit/auth', (req, res) => {
+  if (!GOOGLE_CLIENT_ID) return res.status(500).json({ error: 'Google credentials not configured' });
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+  url.searchParams.set('redirect_uri', GOOGLE_REDIRECT_URI);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.location.read');
+  url.searchParams.set('access_type', 'offline');
+  url.searchParams.set('prompt', 'consent');
+  res.redirect(url.toString());
+});
+
+app.get('/api/integrations/google-fit/callback', async (req, res) => {
+  const frontendUrl = FRONTEND_URL || 'http://localhost:5173';
+  const { code, error } = req.query;
+  if (error || !code) return res.redirect(`${frontendUrl}?gfit=error`);
+  try {
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI, grant_type: 'authorization_code',
+      }),
+    });
+    const tokens = await tokenRes.json();
+    if (!tokens.access_token) return res.redirect(`${frontendUrl}?gfit=error`);
+    await prisma.googleFitToken.upsert({
+      where: { userId: DEFAULT_USER_ID },
+      create: {
+        userId: DEFAULT_USER_ID,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
+      },
+      update: {
+        accessToken: tokens.access_token,
+        ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+        expiresAt: new Date(Date.now() + (tokens.expires_in || 3600) * 1000),
+      },
+    });
+    res.redirect(`${frontendUrl}?gfit=connected`);
+  } catch (err) {
+    console.error('Google Fit callback error:', err);
+    res.redirect(`${frontendUrl}?gfit=error`);
+  }
+});
+
+app.get('/api/integrations/google-fit/status', requireAuth, async (req, res) => {
+  try {
+    const gToken = await prisma.googleFitToken.findUnique({ where: { userId: req.userId } });
+    res.json({ connected: !!gToken, updatedAt: gToken?.updatedAt || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/integrations/google-fit', requireAuth, async (req, res) => {
+  try {
+    await prisma.googleFitToken.deleteMany({ where: { userId: req.userId } });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/integrations/google-fit/debug', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    let gToken = await prisma.googleFitToken.findUnique({ where: { userId: DEFAULT_USER_ID } });
+    if (!gToken) return res.status(400).json({ error: 'Not connected' });
+    if (new Date() >= gToken.expiresAt) {
+      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ refresh_token: gToken.refreshToken, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, grant_type: 'refresh_token' }),
+      });
+      const refreshed = await refreshRes.json();
+      gToken = await prisma.googleFitToken.update({ where: { userId: DEFAULT_USER_ID }, data: { accessToken: refreshed.access_token, expiresAt: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000) } });
+    }
+    const endMs = Date.now();
+    const startMs = endMs - days * 24 * 60 * 60 * 1000;
+    const fitRes = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${gToken.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }, { dataTypeName: 'com.google.distance.delta' }],
+        bucketByTime: { durationMillis: 86400000 },
+        startTimeMillis: startMs,
+        endTimeMillis: endMs,
+      }),
+    });
+    const raw = await fitRes.json();
+    res.json(raw);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/integrations/google-fit/sync', requireAuth, async (req, res) => {
+  try {
+    const { days = 7 } = req.body;
+    const user = await getOrCreateUser(req.userId);
+    let gToken = await prisma.googleFitToken.findUnique({ where: { userId: req.userId } });
+    if (!gToken) return res.status(400).json({ error: 'Not connected to Google Fit' });
+
+    // Refresh token if expired
+    if (new Date() >= gToken.expiresAt) {
+      if (!gToken.refreshToken) return res.status(401).json({ error: 'Token expired. Please reconnect Google Fit.' });
+      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          refresh_token: gToken.refreshToken, client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET, grant_type: 'refresh_token',
+        }),
+      });
+      const refreshed = await refreshRes.json();
+      if (!refreshed.access_token) return res.status(401).json({ error: 'Failed to refresh token. Please reconnect.' });
+      gToken = await prisma.googleFitToken.update({
+        where: { userId: req.userId },
+        data: { accessToken: refreshed.access_token, expiresAt: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000) },
+      });
+    }
+
+    // Fetch steps and distance separately so a missing scope on one doesn't break the other
+    const endMs = Date.now();
+    const startMs = endMs - days * 24 * 60 * 60 * 1000;
+    const authHeader = { Authorization: `Bearer ${gToken.accessToken}`, 'Content-Type': 'application/json' };
+    const body = (types) => JSON.stringify({ aggregateBy: types.map((t) => ({ dataTypeName: t })), bucketByTime: { durationMillis: 86400000 }, startTimeMillis: startMs, endTimeMillis: endMs });
+
+    const [stepsRes, distRes] = await Promise.all([
+      fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', { method: 'POST', headers: authHeader, body: body(['com.google.step_count.delta']) }),
+      fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', { method: 'POST', headers: authHeader, body: body(['com.google.distance.delta']) }),
+    ]);
+
+    const stepsData = await stepsRes.json();
+    const distData = distRes.ok ? await distRes.json() : { bucket: [] };
+
+    if (!distRes.ok) console.warn('[GFit] distance fetch failed (scope missing?):', await distRes.text().catch(() => ''));
+
+    // Build per-date maps
+    const stepsMap = {}, distMap = {};
+    for (const bucket of stepsData.bucket || []) {
+      const d = new Date(parseInt(bucket.startTimeMillis));
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      let s = 0;
+      for (const dataset of bucket.dataset || []) for (const pt of dataset.point || []) for (const v of pt.value || []) s += (v.intVal || 0);
+      stepsMap[ds] = s; // store 0 too so we can log it
+    }
+    for (const bucket of distData.bucket || []) {
+      const d = new Date(parseInt(bucket.startTimeMillis));
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      let m = 0;
+      for (const dataset of bucket.dataset || []) for (const pt of dataset.point || []) for (const v of pt.value || []) m += (v.fpVal || 0);
+      distMap[ds] = parseFloat((m / 1000).toFixed(2));
+    }
+
+    // Overwrite ALL historical data — always write whatever Google Fit says
+    const allDates = new Set([...Object.keys(stepsMap), ...Object.keys(distMap)]);
+    let synced = 0;
+    for (const dateStr of allDates) {
+      const steps = stepsMap[dateStr] > 0 ? stepsMap[dateStr] : null;
+      const distanceKm = distMap[dateStr] > 0 ? distMap[dateStr] : null;
+      await prisma.entry.upsert({
+        where: { userId_date: { userId: user.id, date: dateStr } },
+        create: { userId: user.id, date: dateStr, steps, runWalk: distanceKm },
+        update: { steps, runWalk: distanceKm }, // always overwrite, even with null
+      });
+      if (steps || distanceKm) synced++;
+    }
+    res.json({ ok: true, synced, days, stepsdays: Object.keys(stepsMap).filter(d => stepsMap[d] > 0).length, distdays: Object.keys(distMap).filter(d => distMap[d] > 0).length });
+  } catch (err) {
+    console.error('Google Fit sync error:', err);
     res.status(500).json({ error: err.message });
   }
 });

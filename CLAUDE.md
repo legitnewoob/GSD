@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Path Rules (IMPORTANT)
+
+- The correct, exact project path is: `/Users/rajagrawal/Code/GSD` — username is `rajagrawal`, all lowercase, no variants, no typos.
+- **Never construct an absolute path from memory or a guessed username.** If an absolute path is needed, verify it first (e.g. via `pwd` or the tool's own working-directory context) rather than assuming.
+- **Prefer relative paths** from the current working directory (`.`, `src/...`, `server/...`) over absolute paths whenever possible — this avoids the username entirely for most file operations.
+- If a file/command fails with "no such file or directory" on an absolute path, do not retry with a differently-spelled/capitalized username — stop and re-verify the actual path with `pwd`.
+
 ## Project Overview
 
 Life RPG Web — a gamified personal productivity tracker. Users log daily habits, mood/energy, time allocation, and expenses, presented as an RPG quest system with hero levels and XP.

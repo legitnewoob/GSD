@@ -31,6 +31,11 @@ echo "⏳ Waiting for services..."
 sleep 5
 
 echo ""
+echo "🗃️ Running database setup..."
+docker exec life-rpg-backend npm run db:generate
+docker exec life-rpg-backend npm run db:push
+
+echo ""
 echo "🔍 Docker status..."
 docker compose ps
 

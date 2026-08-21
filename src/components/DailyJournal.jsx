@@ -162,6 +162,7 @@ export function DailyJournal({
   onAddTodo,
   onToggleTodo,
   onDeleteTodo,
+  todayAllowance,
 }) {
   const [draft, setDraft] = useState(entry);
   const [newHabit, setNewHabit] = useState('');
@@ -377,7 +378,7 @@ export function DailyJournal({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { key: 'screenTime', label: 'Screen time (hrs)', icon: Moon },
-          { key: 'money', label: 'Gold spent (₹)', icon: Coins },
+          { key: 'money', label: 'Gold spent (₹)', icon: Coins, placeholder: todayAllowance > 0 ? `Budget: ₹${todayAllowance}` : undefined },
           { key: 'runWalk', label: 'Run / walk (km)', icon: Footprints },
           { key: 'steps', label: 'Steps', icon: Zap },
         ].map((f) => {
@@ -396,6 +397,7 @@ export function DailyJournal({
                   updateField(f.key, val === '' ? '' : f.key === 'steps' ? parseInt(val, 10) : parseFloat(val));
                 }}
                 className={inputBase}
+                placeholder={f.placeholder || ''}
               />
             </div>
           );

@@ -19,6 +19,7 @@ model User {
   budgetSetting BudgetSetting?
   expenses      Expense[]
   todos         Todo[]
+  googleFitToken GoogleFitToken?
 
   @@map("users")
 }
@@ -114,16 +115,56 @@ model EntryCategory {
 }
 
 model BudgetSetting {
-  id           String  @id @default(cuid())
-  userId       String  @unique @map("user_id")
-  dailyLimit   Float?  @map("daily_limit")
-  monthlyLimit Float?  @map("monthly_limit")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  monthlyIncome   Float?   @map("monthly_income")
+  cashBalance     Float?   @map("cash_balance")
+  bankBalance       Float?   @map("bank_balance")
+  salaryDay         Int?     @map("salary_day")
+  lastSalaryCredit  String?  @map("last_salary_credit")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  budgetCategories BudgetCategory[]
+  creditCards      CreditCard[]
 
   @@map("budget_settings")
+}
+
+model BudgetCategory {
+  id              String   @id @default(cuid())
+  budgetSettingId String   @map("budget_setting_id")
+  name            String
+  type            String   @default("daily")
+  budgetedAmount  Float    @default(0) @map("budgeted_amount")
+  spentAmount     Float    @default(0) @map("spent_amount")
+  order           Int      @default(0)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  budgetSetting BudgetSetting @relation(fields: [budgetSettingId], references: [id], onDelete: Cascade)
+
+  @@map("budget_categories")
+}
+
+model CreditCard {
+  id              String   @id @default(cuid())
+  budgetSettingId String   @map("budget_setting_id")
+  name            String
+  currentBalance  Float    @default(0) @map("current_balance")
+  creditLimit     Float?   @map("credit_limit")
+  rewardPoints    Float?   @map("reward_points")
+  isPaid          Boolean  @default(false) @map("is_paid")
+  order           Int      @default(0)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  budgetSetting BudgetSetting @relation(fields: [budgetSettingId], references: [id], onDelete: Cascade)
+
+  @@map("credit_cards")
 }
 
 model Expense {
@@ -152,4 +193,18 @@ model Todo {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("todos")
+}
+
+model GoogleFitToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique @map("user_id")
+  accessToken  String   @map("access_token")
+  refreshToken String?  @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_fit_tokens")
 }

@@ -92,7 +92,7 @@ function blankEntry(date, config) {
 }
 
 export function useLifeRpg() {
-  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null, todos: [] });
+  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null, budgetCategories: [], creditCards: [], todos: [] });
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,10 +105,32 @@ export function useLifeRpg() {
       try {
         const [cfg, rawEntries] = await Promise.all([api.getConfig(), api.getEntries()]);
         if (cancelled) return;
+
+        // Auto-credit salary when salary day arrives and not yet credited this month
+        const bs = cfg.budgetSetting;
+        if (bs?.salaryDay && bs?.monthlyIncome) {
+          const today = new Date();
+          const thisMonth = format(today, 'yyyy-MM');
+          // Find effective salary day — shift to previous Friday if it falls on weekend
+          const salaryDate = new Date(today.getFullYear(), today.getMonth(), bs.salaryDay);
+          const dow = salaryDate.getDay();
+          if (dow === 0) salaryDate.setDate(salaryDate.getDate() - 2); // Sunday → Friday
+          else if (dow === 6) salaryDate.setDate(salaryDate.getDate() - 1); // Saturday → Friday
+          const effectiveSalaryDay = salaryDate.getDate();
+
+          if (today.getDate() >= effectiveSalaryDay && bs.lastSalaryCredit !== thisMonth) {
+            const newBank = (bs.bankBalance || 0) + bs.monthlyIncome;
+            await api.saveBudget({ bankBalance: newBank, lastSalaryCredit: thisMonth });
+            cfg.budgetSetting = { ...bs, bankBalance: newBank, lastSalaryCredit: thisMonth };
+          }
+        }
+
         setConfig({
           habits: cfg.habits,
           categories: cfg.categories,
           budgetSetting: cfg.budgetSetting,
+          budgetCategories: cfg.budgetSetting?.budgetCategories || [],
+          creditCards: cfg.budgetSetting?.creditCards || [],
           todos: cfg.todos || [],
         });
         setEntries(rawEntries.map(fromApiEntry));
@@ -220,6 +242,11 @@ export function useLifeRpg() {
     }
   }, [config, persist]);
 
+  const refreshEntries = useCallback(async () => {
+    const rawEntries = await api.getEntries();
+    setEntries(rawEntries.map(fromApiEntry));
+  }, []);
+
   const clearAll = useCallback(async () => {
     await Promise.all(entries.map((e) => api.deleteEntry(e.id)));
     setEntries([]);
@@ -263,7 +290,39 @@ export function useLifeRpg() {
 
   const saveBudget = useCallback(async (settings) => {
     const saved = await api.saveBudget(settings);
-    setConfig((c) => ({ ...c, budgetSetting: saved }));
+    setConfig((c) => ({ ...c, budgetSetting: saved, budgetCategories: saved.budgetCategories || c.budgetCategories, creditCards: saved.creditCards || c.creditCards }));
+  }, []);
+
+  const saveBudgetSettings = saveBudget;
+
+  const saveBudgetCategory = useCallback(async (category) => {
+    const saved = await api.saveBudgetCategory(category);
+    setConfig((c) => {
+      const existing = c.budgetCategories.find((x) => x.id === saved.id);
+      if (existing) return { ...c, budgetCategories: c.budgetCategories.map((x) => (x.id === saved.id ? saved : x)) };
+      return { ...c, budgetCategories: [...c.budgetCategories, saved] };
+    });
+    return saved;
+  }, []);
+
+  const deleteBudgetCategory = useCallback(async (id) => {
+    await api.deleteBudgetCategory(id);
+    setConfig((c) => ({ ...c, budgetCategories: c.budgetCategories.filter((x) => x.id !== id) }));
+  }, []);
+
+  const saveCreditCard = useCallback(async (card) => {
+    const saved = await api.saveCreditCard(card);
+    setConfig((c) => {
+      const existing = c.creditCards.find((x) => x.id === saved.id);
+      if (existing) return { ...c, creditCards: c.creditCards.map((x) => (x.id === saved.id ? saved : x)) };
+      return { ...c, creditCards: [...c.creditCards, saved] };
+    });
+    return saved;
+  }, []);
+
+  const deleteCreditCard = useCallback(async (id) => {
+    await api.deleteCreditCard(id);
+    setConfig((c) => ({ ...c, creditCards: c.creditCards.filter((x) => x.id !== id) }));
   }, []);
 
   const addTodo = useCallback(async (text) => {
@@ -307,9 +366,15 @@ export function useLifeRpg() {
     updateCategory,
     deleteCategory,
     saveBudget,
+    saveBudgetSettings,
+    saveBudgetCategory,
+    deleteBudgetCategory,
+    saveCreditCard,
+    deleteCreditCard,
     addTodo,
     toggleTodo,
     updateTodo,
     deleteTodo,
+    refreshEntries,
   };
 }

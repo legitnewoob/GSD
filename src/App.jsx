@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLifeRpg } from './hooks/useLifeRpg';
 import { api } from './lib/api';
 import { Navigation } from './components/Navigation';
@@ -21,19 +21,39 @@ function AppContent() {
     error,
     save,
     startFresh,
-    clearAll,
     getOrCreate,
     addHabit,
-    updateHabit,
     deleteHabit,
     addCategory,
     updateCategory,
     deleteCategory,
     saveBudget,
+    saveBudgetCategory,
+    deleteBudgetCategory,
+    saveCreditCard,
+    deleteCreditCard,
     addTodo,
     toggleTodo,
     deleteTodo,
+    refreshEntries,
   } = useLifeRpg();
+
+  const todayAllowance = useMemo(() => {
+    const budgetCategories = config.budgetCategories || [];
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const dayOfMonth = today.getDate();
+    const daysLeft = daysInMonth - dayOfMonth + 1; // remaining days including today
+    const dailyCats = budgetCategories.filter((c) => c.type === 'daily' && c.isActive !== false);
+    const monthlyDailyPool = dailyCats.reduce((s, c) => s + (c.budgetedAmount || 0), 0);
+    const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const totalSpent = entries
+      .filter((e) => e.date >= monthStart && e.date <= todayStr)
+      .reduce((s, e) => s + (parseFloat(e.money) || 0), 0);
+    const remaining = monthlyDailyPool - totalSpent;
+    return daysLeft > 0 ? Math.round(remaining / daysLeft) : 0;
+  }, [entries, config.budgetCategories]);
 
   const fallbackEntry = getOrCreate(selectedDate);
 
@@ -77,12 +97,23 @@ function AppContent() {
           onAddTodo={addTodo}
           onToggleTodo={toggleTodo}
           onDeleteTodo={deleteTodo}
+          todayAllowance={todayAllowance}
         />
       );
     }
     if (activeTab === 'dashboard') return <Dashboard config={config} entries={entries} />;
     if (activeTab === 'game') return <GameDashboard entries={entries} />;
-    if (activeTab === 'budget') return <Budget config={config} entries={entries} onSaveBudget={saveBudget} />;
+    if (activeTab === 'budget') return (
+      <Budget
+        config={config}
+        entries={entries}
+        onSaveBudget={saveBudget}
+        onSaveBudgetCategory={saveBudgetCategory}
+        onDeleteBudgetCategory={deleteBudgetCategory}
+        onSaveCreditCard={saveCreditCard}
+        onDeleteCreditCard={deleteCreditCard}
+      />
+    );
     if (activeTab === 'weekly') return <WeeklyReview config={config} entries={entries} />;
     if (activeTab === 'admin') {
       return (
@@ -91,6 +122,7 @@ function AppContent() {
           onUpdateCategory={updateCategory}
           onDeleteCategory={deleteCategory}
           onDeleteHabit={deleteHabit}
+          onRefreshEntries={refreshEntries}
         />
       );
     }
