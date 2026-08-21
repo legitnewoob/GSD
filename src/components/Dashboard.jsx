@@ -40,7 +40,11 @@ function StatCard({ icon: Icon, label, value, unit = '', color = 'text-game-gold
 }
 
 function computeStreak(entries) {
-  const allDates = new Set(entries.map((e) => e.date));
+  const allDates = new Set(
+    entries
+      .filter((e) => Object.values(e.habits || {}).some(Boolean))
+      .map((e) => e.date)
+  );
   let streak = 0;
   let check = new Date();
   while (true) {
