@@ -65,7 +65,7 @@ const RANGES = [
 ];
 
 export function Dashboard({ config, entries: allEntries }) {
-  const [range, setRange] = useState(30);
+  const [range, setRange] = useState(7);
   const habitsList = config.habits || [];
   const categoriesList = config.categories || [];
 

@@ -20,7 +20,7 @@ function computeTodayAllowance(entries, budgetCategories) {
   const today = new Date();
   const daysInMonth = getDaysInMonth(today);
   const dayOfMonth = today.getDate();
-  const remainingDaysFromTomorrow = daysInMonth - dayOfMonth; // days after today
+  const daysLeft = daysInMonth - dayOfMonth + 1; // remaining days including today
 
   const dailyCats = budgetCategories.filter((c) => c.type === 'daily' && c.isActive !== false);
   const monthlyDailyPool = dailyCats.reduce((s, c) => s + (c.budgetedAmount || 0), 0);
@@ -38,11 +38,11 @@ function computeTodayAllowance(entries, budgetCategories) {
   // Carry-forward allowance for today
   const allowance = dayOfMonth * baseDaily - totalSpentBeforeToday;
 
-  // Forward-looking: (remaining budget) / remaining days — what to spend per day from tomorrow
+  // Forward-looking: (remaining budget) / days left including today
   const remainingBudget = monthlyDailyPool - totalSpentThisMonth;
-  const dailyFromBudget = remainingDaysFromTomorrow > 0 ? remainingBudget / remainingDaysFromTomorrow : null;
+  const dailyFromBudget = daysLeft > 0 ? remainingBudget / daysLeft : null;
 
-  return { allowance, baseDaily, monthlyDailyPool, daysInMonth, dayOfMonth, remainingDaysFromTomorrow, totalSpentThisMonth, remainingBudget, dailyFromBudget };
+  return { allowance, baseDaily, monthlyDailyPool, daysInMonth, dayOfMonth, daysLeft, totalSpentThisMonth, remainingBudget, dailyFromBudget };
 }
 
 
@@ -425,7 +425,7 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const budgetCategories = useMemo(() => config.budgetCategories || [], [config.budgetCategories]);
   const creditCards = config.creditCards || [];
 
-  const { allowance, baseDaily, monthlyDailyPool, daysInMonth, dayOfMonth, remainingDaysFromTomorrow, totalSpentThisMonth, remainingBudget, dailyFromBudget } = useMemo(
+  const { allowance, baseDaily, monthlyDailyPool, daysInMonth, dayOfMonth, daysLeft, totalSpentThisMonth, remainingBudget, dailyFromBudget } = useMemo(
     () => computeTodayAllowance(entries, budgetCategories),
     [entries, budgetCategories]
   );
@@ -686,14 +686,14 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
                   </div>
                 )}
               </div>
-              {dailyFromBudget !== null && remainingDaysFromTomorrow > 0 && (
+              {dailyFromBudget !== null && daysLeft > 0 && (
                 <div className="text-right">
-                  <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Daily food budget · next {remainingDaysFromTomorrow}d</div>
+                  <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Daily budget · {daysLeft}d left</div>
                   <div className={`text-2xl font-black text-glow ${dailyFromBudget >= 0 ? 'text-amber-300' : 'text-red-400'}`}>
                     ₹{Math.abs(dailyFromBudget).toFixed(0)}<span className="text-base font-normal text-game-dim">/day</span>
                   </div>
                   <div className="text-xs text-game-dim mt-0.5">
-                    ₹{remainingBudget.toFixed(0)} left ÷ {remainingDaysFromTomorrow} days
+                    ₹{remainingBudget.toFixed(0)} left ÷ {daysLeft} days
                   </div>
                 </div>
               )}
@@ -864,7 +864,8 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
             <tbody className="divide-y divide-slate-800">
               {[...thisMonthEntries].reverse().map((e) => {
                 const spent = parseFloat(e.money) || 0;
-                const over = baseDaily > 0 && spent > baseDaily;
+                const allowanceForRow = dailyFromBudget != null ? Math.round(dailyFromBudget) : Math.round(baseDaily);
+                const over = allowanceForRow > 0 && spent > allowanceForRow;
                 return (
                   <tr key={e.date} className={`hover:bg-slate-900/40 transition ${e.date === todayStr ? 'bg-amber-500/5' : ''}`}>
                     <td className="px-4 py-3 text-game-text font-bold">
@@ -872,11 +873,11 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
                       {e.date === todayStr && <span className="ml-2 text-xs text-amber-400 font-bold">TODAY</span>}
                     </td>
                     <td className="px-4 py-3 font-bold text-game-text">₹{spent.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-game-dim">₹{baseDaily.toFixed(0)}</td>
+                    <td className="px-4 py-3 text-game-dim">₹{allowanceForRow}</td>
                     <td className="px-4 py-3">
                       {spent === 0 ? <span className="text-game-dim">No entry</span>
-                        : over ? <span className="text-red-400 font-bold">Over by ₹{(spent - baseDaily).toFixed(0)}</span>
-                        : <span className="text-emerald-400 font-bold">Saved ₹{(baseDaily - spent).toFixed(0)}</span>}
+                        : over ? <span className="text-red-400 font-bold">Over by ₹{(spent - allowanceForRow).toFixed(0)}</span>
+                        : <span className="text-emerald-400 font-bold">Saved ₹{(allowanceForRow - spent).toFixed(0)}</span>}
                     </td>
                   </tr>
                 );
