@@ -345,7 +345,7 @@ export function Dashboard({ config, entries: allEntries }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={activityData} margin={{ left: 10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
+                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={0} />
                 <YAxis yAxisId="steps" orientation="left" tick={{ fill: '#06b6d4', fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v} />
                 <YAxis yAxisId="km" orientation="right" tick={{ fill: '#22c55e', fontSize: 11 }} tickFormatter={(v) => `${v}km`} />
                 <Tooltip
