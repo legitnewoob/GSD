@@ -1,5 +1,5 @@
-const SHELL_CACHE = 'gsd-shell-v6';
-const ASSET_CACHE = 'gsd-assets-v6';
+const SHELL_CACHE = 'gsd-shell-v7';
+const ASSET_CACHE = 'gsd-assets-v7';
 const APP_SHELL_URLS = ['/', '/manifest.json', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {
