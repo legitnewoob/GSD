@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { format, parseISO, subDays, startOfWeek, isAfter, startOfDay } from 'date-fns';
+import { format, parseISO, subDays, startOfWeek } from 'date-fns';
 import {
   ResponsiveContainer,
   LineChart,
@@ -76,8 +76,8 @@ export function Dashboard({ config, entries: allEntries }) {
 
   const streak = computeStreak(allEntries);
 
-  const cutoff = startOfDay(subDays(new Date(), range - 1));
-  const entries = allEntries.filter((e) => !isAfter(cutoff, parseISO(e.date)));
+  const cutoffStr = format(subDays(new Date(), range - 1), 'yyyy-MM-dd');
+  const entries = allEntries.filter((e) => e.date >= cutoffStr);
 
   const days = entries.length;
 
