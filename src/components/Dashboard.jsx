@@ -14,6 +14,7 @@ import {
   Pie,
   Cell,
   Label,
+  ReferenceLine,
 } from 'recharts';
 import { specialCategoryKeys, getHabitGroup, HABIT_GROUP_ORDER } from '../utils/constants';
 import { Calendar, Sword, Moon, Sparkles, Heart, Zap, Monitor, Footprints, Flame, TrendingUp } from 'lucide-react';
@@ -125,15 +126,15 @@ export function Dashboard({ config, entries: allEntries }) {
   const dateFormat = range === 7 ? 'EEE d' : 'dd MMM';
 
   const lineData = entries.map((e) => ({
-    date: format(parseISO(e.date), dateFormat),
-    power: e.power?.value || null,
-    mood: e.mood?.value || null,
-    energy: e.energy?.value || null,
-    sleep: getHours(e, specialCategoryKeys.sleep) || null,
-    screen: e.screenTime !== '' && e.screenTime != null ? parseFloat(e.screenTime) : null,
-    steps: parseInt(e.steps) || null,
-    stepsScaled: parseInt(e.steps) ? Math.round(parseInt(e.steps) / 100) : null,
-    km: parseFloat(e.runWalk) || null,
+    date:           format(parseISO(e.date), dateFormat),
+    power:          e.power?.value || null,
+    mood:           e.mood?.value || null,
+    energy:         e.energy?.value || null,
+    sleep:          getHours(e, specialCategoryKeys.sleep) || null,
+    screen:         e.screenTime !== '' && e.screenTime != null ? parseFloat(e.screenTime) : null,
+    steps:          parseInt(e.steps) || null,
+    km:             parseFloat(e.runWalk) || null,
+    habitsChecked:  habitsList.filter((h) => e.habits[h.id]).length,
   }));
 
   const habitData = habitsList.map((h) => {
@@ -302,6 +303,29 @@ export function Dashboard({ config, entries: allEntries }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div className={panelBase}>
+          <h2 className="text-lg font-black uppercase tracking-wide text-game-text mb-1">Habits / Day</h2>
+          <p className="text-xs text-game-dim mb-4">Dashed line = total habits ({habitsList.length})</p>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={lineData} margin={{ left: -10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
+                <YAxis domain={[0, habitsList.length]} tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => [v, 'Habits checked']} />
+                <ReferenceLine y={habitsList.length} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1.5} />
+                <Bar dataKey="habitsChecked" name="Habits" radius={[3, 3, 0, 0]}>
+                  {lineData.map((d, i) => {
+                    const pct = habitsList.length ? d.habitsChecked / habitsList.length : 0;
+                    const fill = pct >= 0.7 ? '#22c55e' : pct >= 0.4 ? '#f59e0b' : '#ef4444';
+                    return <Cell key={i} fill={fill} />;
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
