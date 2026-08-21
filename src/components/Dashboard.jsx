@@ -149,13 +149,13 @@ export function Dashboard({ config, entries: allEntries }) {
 
   const totalCategoryHours = categoryTotals.reduce((s, c) => s + c.value, 0);
 
-  // Weekly aggregation for steps & distance
+  // Weekly aggregation for steps & distance (30D only)
   const weeklyActivityData = (() => {
     const weekMap = {};
     entries.forEach((e) => {
       const weekStart = startOfWeek(parseISO(e.date), { weekStartsOn: 1 }); // Monday
       const key = format(weekStart, 'MMM d');
-      if (!weekMap[key]) weekMap[key] = { week: key, steps: 0, km: 0, _sort: weekStart.getTime() };
+      if (!weekMap[key]) weekMap[key] = { label: key, steps: 0, km: 0, _sort: weekStart.getTime() };
       weekMap[key].steps += parseInt(e.steps) || 0;
       weekMap[key].km += parseFloat(e.runWalk) || 0;
     });
@@ -163,6 +163,11 @@ export function Dashboard({ config, entries: allEntries }) {
       .sort((a, b) => a._sort - b._sort)
       .map(({ _sort, ...rest }) => ({ ...rest, km: parseFloat(rest.km.toFixed(2)) }));
   })();
+
+  // 7D → daily bars; 30D → weekly aggregated bars
+  const activityData = range === 7
+    ? lineData.map((d) => ({ label: d.date, steps: d.steps, km: d.km }))
+    : weeklyActivityData;
 
   return (
     <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
@@ -328,7 +333,9 @@ export function Dashboard({ config, entries: allEntries }) {
 
         <div className={`${panelBase} lg:col-span-2`}>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Steps & Distance</h2>
+            <h2 className="text-lg font-black uppercase tracking-wide text-game-text">
+              Steps & Distance <span className="text-xs font-normal text-game-dim ml-1">{range === 7 ? 'daily' : 'weekly'}</span>
+            </h2>
             <div className="flex gap-4">
               <span className="text-xs text-cyan-400 font-bold">▪ Steps</span>
               <span className="text-xs text-emerald-400 font-bold">▪ Km</span>
@@ -336,9 +343,9 @@ export function Dashboard({ config, entries: allEntries }) {
           </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyActivityData} margin={{ left: 10, right: 10 }}>
+              <BarChart data={activityData} margin={{ left: 10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="week" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <XAxis dataKey="label" tick={{ fill: '#94a3b8', fontSize: 11 }} interval={xInterval} />
                 <YAxis yAxisId="steps" orientation="left" tick={{ fill: '#06b6d4', fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v} />
                 <YAxis yAxisId="km" orientation="right" tick={{ fill: '#22c55e', fontSize: 11 }} tickFormatter={(v) => `${v}km`} />
                 <Tooltip
