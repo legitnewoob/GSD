@@ -54,6 +54,58 @@ function RatingPicker({ options, value, onSelect }) {
 
 const CAT_COLORS = ['#f59e0b','#3b82f6','#22c55e','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#14b8a6','#a855f7'];
 
+// Splits decimal hours into whole hours + minutes for display
+function decimalToHM(decimal) {
+  if (!decimal && decimal !== 0) return { h: '', m: '' };
+  const totalMins = Math.round(decimal * 60);
+  return { h: Math.floor(totalMins / 60) || '', m: totalMins % 60 || '' };
+}
+
+function TimeInput({ value, onChange, isError }) {
+  const { h: initH, m: initM } = decimalToHM(value);
+  const [h, setH] = useState(initH);
+  const [m, setM] = useState(initM);
+
+  // Sync if parent value changes (e.g. date switch)
+  useEffect(() => {
+    const { h: newH, m: newM } = decimalToHM(value);
+    setH(newH);
+    setM(newM);
+  }, [value]);
+
+  const commit = (hVal, mVal) => {
+    const hours = (parseInt(hVal) || 0) + (parseInt(mVal) || 0) / 60;
+    onChange(hours > 0 ? +hours.toFixed(4) : '');
+  };
+
+  const smallInput = [
+    'w-14 bg-slate-900 border rounded-lg px-2 py-2 text-sm text-center text-game-text',
+    'placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition',
+    isError ? 'border-red-700/60' : 'border-slate-600',
+  ].join(' ');
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="number" min={0} max={24} step={1}
+        value={h}
+        placeholder="0"
+        onChange={(e) => { setH(e.target.value); commit(e.target.value, m); }}
+        className={smallInput}
+      />
+      <span className="text-xs font-bold text-game-dim">h</span>
+      <input
+        type="number" min={0} max={59} step={5}
+        value={m}
+        placeholder="0"
+        onChange={(e) => { setM(e.target.value); commit(h, e.target.value); }}
+        className={smallInput}
+      />
+      <span className="text-xs font-bold text-game-dim">m</span>
+    </div>
+  );
+}
+
 const inputBase =
   'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-game-text placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition';
 
@@ -236,7 +288,7 @@ export function DailyJournal({
       ...draft,
       categories: {
         ...draft.categories,
-        [id]: { ...draft.categories[id], hours: value === '' ? '' : parseFloat(value) },
+        [id]: { ...draft.categories[id], hours: value === '' ? '' : value },
       },
     };
     commit(next);
@@ -433,15 +485,10 @@ export function DailyJournal({
                   {c.name}
                   {c.expectedHours ? <span className="text-slate-600 normal-case font-normal ml-1">· goal {c.expectedHours}h</span> : ''}
                 </label>
-                <input
-                  type="number"
-                  min={0}
-                  max={24}
-                  step={0.5}
-                  placeholder={c.expectedHours ? String(c.expectedHours) : '0'}
+                <TimeInput
                   value={draft.categories[c.id]?.hours ?? ''}
-                  onChange={(e) => updateCategory(c.id, e.target.value)}
-                  className={[inputBase, isOver ? 'border-red-700/60 focus:border-red-500' : ''].join(' ')}
+                  onChange={(val) => updateCategory(c.id, val)}
+                  isError={isOver}
                 />
                 {diffFromExpected !== null && (
                   <div className={`text-[10px] mt-0.5 font-bold ${diffFromExpected > 0 ? 'text-amber-400' : diffFromExpected < 0 ? 'text-blue-400' : 'text-emerald-400'}`}>
