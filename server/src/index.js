@@ -635,7 +635,7 @@ app.post('/api/integrations/google-fit/sync', requireAuth, async (req, res) => {
 
     // Refresh token if expired
     if (new Date() >= gToken.expiresAt) {
-      if (!gToken.refreshToken) return res.status(401).json({ error: 'Token expired. Please reconnect Google Fit.' });
+      if (!gToken.refreshToken) return res.status(400).json({ error: 'Token expired. Please reconnect Google Fit.' });
       const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -645,7 +645,7 @@ app.post('/api/integrations/google-fit/sync', requireAuth, async (req, res) => {
         }),
       });
       const refreshed = await refreshRes.json();
-      if (!refreshed.access_token) return res.status(401).json({ error: 'Failed to refresh token. Please reconnect.' });
+      if (!refreshed.access_token) return res.status(400).json({ error: 'Failed to refresh token. Please reconnect.' });
       gToken = await prisma.googleFitToken.update({
         where: { userId: req.userId },
         data: { accessToken: refreshed.access_token, expiresAt: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000) },
