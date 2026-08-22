@@ -52,6 +52,8 @@ function RatingPicker({ options, value, onSelect }) {
   );
 }
 
+const CAT_COLORS = ['#f59e0b','#3b82f6','#22c55e','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#14b8a6','#a855f7'];
+
 const inputBase =
   'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-game-text placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition';
 
@@ -256,6 +258,15 @@ export function DailyJournal({
   const categoriesList = config.categories || [];
   const completedHabits = habitsList.filter((h) => draft.habits[h.id]).length;
   const habitPct = habitsList.length ? (completedHabits / habitsList.length) * 100 : 0;
+
+  const totalHours = categoriesList.reduce((sum, c) => {
+    const h = parseFloat(draft.categories[c.id]?.hours);
+    return sum + (isNaN(h) ? 0 : h);
+  }, 0);
+  const remaining = +(24 - totalHours).toFixed(1);
+  const isOver = totalHours > 24;
+  const timePct = Math.min(100, (totalHours / 24) * 100);
+
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -366,29 +377,82 @@ export function DailyJournal({
       </div>
 
       <div className={panelBase}>
-        <div className="flex items-center gap-2 mb-4">
-          <Moon className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Time Allocation (hours)</h2>
+        {/* Header with live total */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Moon className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Time Allocation</h2>
+          </div>
+          <div className={`text-sm font-black tabular-nums ${isOver ? 'text-red-400' : 'text-game-gold'}`}>
+            {totalHours.toFixed(1)}h / 24h
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {categoriesList.map((c) => (
-            <div key={c.id}>
-              <label className="block text-xs font-bold text-game-dim uppercase tracking-wide mb-1">
-                {c.name} {c.expectedHours ? `(exp ${c.expectedHours}h)` : ''}
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={24}
-                step={0.5}
-                placeholder={c.expectedHours ? String(c.expectedHours) : '0'}
-                value={draft.categories[c.id]?.hours ?? ''}
-                onChange={(e) => updateCategory(c.id, e.target.value)}
-                className={inputBase}
+
+        {/* Stacked 24h progress bar */}
+        <div className="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700 mb-1">
+          {categoriesList.map((c, i) => {
+            const h = parseFloat(draft.categories[c.id]?.hours);
+            const val = isNaN(h) ? 0 : h;
+            const pct = (val / 24) * 100;
+            const offset = categoriesList.slice(0, i).reduce((s, cc) => {
+              const hh = parseFloat(draft.categories[cc.id]?.hours);
+              return s + (isNaN(hh) ? 0 : (hh / 24) * 100);
+            }, 0);
+            if (pct === 0) return null;
+            return (
+              <div
+                key={c.id}
+                title={`${c.name}: ${val}h`}
+                className="absolute inset-y-0 transition-all"
+                style={{ left: `${Math.min(offset, 100)}%`, width: `${Math.min(pct, 100 - offset)}%`, backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }}
               />
-            </div>
-          ))}
+            );
+          })}
+          {isOver && <div className="absolute inset-0 bg-red-500/30 animate-pulse" />}
         </div>
+
+        {/* Balance line */}
+        <div className={`text-xs font-bold mb-4 ${isOver ? 'text-red-400' : remaining === 0 ? 'text-emerald-400' : 'text-game-dim'}`}>
+          {isOver
+            ? `⚠ ${Math.abs(remaining)}h over 24h — reduce to balance`
+            : remaining === 0
+            ? '✓ Perfectly allocated'
+            : `${remaining}h unallocated`}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {categoriesList.map((c, i) => {
+            const color = CAT_COLORS[i % CAT_COLORS.length];
+            const val = parseFloat(draft.categories[c.id]?.hours);
+            const hasVal = !isNaN(val) && val > 0;
+            const diffFromExpected = c.expectedHours && hasVal ? +(val - c.expectedHours).toFixed(1) : null;
+            return (
+              <div key={c.id}>
+                <label className="flex items-center gap-1.5 text-xs font-bold text-game-dim uppercase tracking-wide mb-1">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  {c.name}
+                  {c.expectedHours ? <span className="text-slate-600 normal-case font-normal ml-1">· goal {c.expectedHours}h</span> : ''}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={24}
+                  step={0.5}
+                  placeholder={c.expectedHours ? String(c.expectedHours) : '0'}
+                  value={draft.categories[c.id]?.hours ?? ''}
+                  onChange={(e) => updateCategory(c.id, e.target.value)}
+                  className={[inputBase, isOver ? 'border-red-700/60 focus:border-red-500' : ''].join(' ')}
+                />
+                {diffFromExpected !== null && (
+                  <div className={`text-[10px] mt-0.5 font-bold ${diffFromExpected > 0 ? 'text-amber-400' : diffFromExpected < 0 ? 'text-blue-400' : 'text-emerald-400'}`}>
+                    {diffFromExpected > 0 ? `+${diffFromExpected}h over goal` : diffFromExpected < 0 ? `${Math.abs(diffFromExpected)}h under goal` : 'On target'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
         <div className="mt-4 flex gap-2">
           <input
             value={newCategory}
