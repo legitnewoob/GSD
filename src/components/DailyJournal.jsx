@@ -54,55 +54,68 @@ function RatingPicker({ options, value, onSelect }) {
 
 const CAT_COLORS = ['#f59e0b','#3b82f6','#22c55e','#8b5cf6','#ec4899','#06b6d4','#f97316','#84cc16','#14b8a6','#a855f7'];
 
-// Splits decimal hours into whole hours + minutes for display
-function decimalToHM(decimal) {
-  if (!decimal && decimal !== 0) return { h: '', m: '' };
-  const totalMins = Math.round(decimal * 60);
-  return { h: Math.floor(totalMins / 60) || '', m: totalMins % 60 || '' };
+// Parse "1h30m", "90m", "1.5h", "1.5", "90" (bare number = hours) → decimal hours
+function parseTimeInput(raw) {
+  const s = String(raw).trim().toLowerCase();
+  if (!s) return '';
+  // e.g. "1h30m", "1h 30m", "1h30"
+  const hm = s.match(/^(\d+(?:\.\d+)?)\s*h\s*(\d+)?\s*m?$/);
+  if (hm) {
+    const hours = parseFloat(hm[1]) + (parseInt(hm[2]) || 0) / 60;
+    return +hours.toFixed(4);
+  }
+  // e.g. "90m", "45m"
+  const mOnly = s.match(/^(\d+(?:\.\d+)?)\s*m$/);
+  if (mOnly) return +(parseFloat(mOnly[1]) / 60).toFixed(4);
+  // e.g. "1.5h", "2h"
+  const hOnly = s.match(/^(\d+(?:\.\d+)?)\s*h$/);
+  if (hOnly) return +parseFloat(hOnly[1]).toFixed(4);
+  // bare number → hours
+  const bare = parseFloat(s);
+  if (!isNaN(bare)) return +bare.toFixed(4);
+  return '';
+}
+
+function decimalToDisplay(decimal) {
+  if (!decimal && decimal !== 0) return '';
+  const totalMins = Math.round(parseFloat(decimal) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
 function TimeInput({ value, onChange, isError }) {
-  const { h: initH, m: initM } = decimalToHM(value);
-  const [h, setH] = useState(initH);
-  const [m, setM] = useState(initM);
+  const [text, setText] = useState(() => decimalToDisplay(value));
+  const [focused, setFocused] = useState(false);
 
-  // Sync if parent value changes (e.g. date switch)
   useEffect(() => {
-    const { h: newH, m: newM } = decimalToHM(value);
-    setH(newH);
-    setM(newM);
-  }, [value]);
+    if (!focused) setText(decimalToDisplay(value));
+  }, [value, focused]);
 
-  const commit = (hVal, mVal) => {
-    const hours = (parseInt(hVal) || 0) + (parseInt(mVal) || 0) / 60;
-    onChange(hours > 0 ? +hours.toFixed(4) : '');
+  const handleBlur = () => {
+    setFocused(false);
+    const parsed = parseTimeInput(text);
+    onChange(parsed);
+    setText(decimalToDisplay(parsed));
   };
 
-  const smallInput = [
-    'w-14 bg-slate-900 border rounded-lg px-2 py-2 text-sm text-center text-game-text',
-    'placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition',
-    isError ? 'border-red-700/60' : 'border-slate-600',
-  ].join(' ');
-
   return (
-    <div className="flex items-center gap-1">
-      <input
-        type="number" min={0} max={24} step={1}
-        value={h}
-        placeholder="0"
-        onChange={(e) => { setH(e.target.value); commit(e.target.value, m); }}
-        className={smallInput}
-      />
-      <span className="text-xs font-bold text-game-dim">h</span>
-      <input
-        type="number" min={0} max={59} step={5}
-        value={m}
-        placeholder="0"
-        onChange={(e) => { setM(e.target.value); commit(h, e.target.value); }}
-        className={smallInput}
-      />
-      <span className="text-xs font-bold text-game-dim">m</span>
-    </div>
+    <input
+      type="text"
+      value={text}
+      placeholder="e.g. 1h 30m or 90m"
+      onChange={(e) => setText(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={handleBlur}
+      onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+      className={[
+        'w-full bg-slate-900 border rounded-lg px-3 py-2 text-sm text-game-text',
+        'placeholder-slate-500 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition',
+        isError ? 'border-red-700/60' : 'border-slate-600',
+      ].join(' ')}
+    />
   );
 }
 
