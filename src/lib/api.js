@@ -71,4 +71,8 @@ export const api = {
   googleFitStatus: () => request('/api/integrations/google-fit/status'),
   googleFitSync: (days) => request('/api/integrations/google-fit/sync', { method: 'POST', body: JSON.stringify({ days }) }),
   googleFitDisconnect: () => request('/api/integrations/google-fit', { method: 'DELETE' }),
+  getNotifications: () => request('/api/notifications'),
+  saveNotification: (payload) => request('/api/notifications', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteNotification: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
+  testNotification: (id) => request(`/api/notifications/${id}/test`, { method: 'POST' }),
 };

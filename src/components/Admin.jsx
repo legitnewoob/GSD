@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Settings, Clock, ListChecks, Trash2, Activity, CheckCircle, AlertCircle, RefreshCw, Unlink } from 'lucide-react';
+import { Settings, Clock, ListChecks, Trash2, Activity, CheckCircle, AlertCircle, RefreshCw, Unlink, Bell } from 'lucide-react';
 import { api } from '../lib/api';
+import { NotificationRules } from './NotificationRules';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
 const inputBase =
@@ -150,6 +151,7 @@ function GoogleFitPanel({ onRefreshEntries }) {
 
 export function Admin({ config, onUpdateCategory, onDeleteCategory, onDeleteHabit, onRefreshEntries }) {
   const [expectedMap, setExpectedMap] = useState({});
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const map = {};
@@ -169,13 +171,25 @@ export function Admin({ config, onUpdateCategory, onDeleteCategory, onDeleteHabi
     onUpdateCategory({ ...category, expectedHours: num });
   };
 
+  if (showNotifications) {
+    return <NotificationRules onBack={() => setShowNotifications(false)} />;
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow flex items-center gap-2">
-          <Settings className="w-7 h-7" /> QUEST SETTINGS
-        </h1>
-        <p className="text-game-dim text-sm">Tune categories, expected hours, habits and integrations.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow flex items-center gap-2">
+            <Settings className="w-7 h-7" /> QUEST SETTINGS
+          </h1>
+          <p className="text-game-dim text-sm">Tune categories, expected hours, habits and integrations.</p>
+        </div>
+        <button
+          onClick={() => setShowNotifications(true)}
+          className="flex items-center gap-2 text-xs text-game-dim hover:text-game-text border border-slate-700 hover:border-slate-500 px-3 py-2 rounded-lg transition"
+        >
+          <Bell className="w-4 h-4" /> Notifications
+        </button>
       </div>
 
       <GoogleFitPanel onRefreshEntries={onRefreshEntries} />

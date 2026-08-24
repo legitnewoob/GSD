@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
+import { startReminderScheduler, sendTelegramMessage } from './scheduler.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -525,6 +526,67 @@ app.delete('/api/todos/:id', async (req, res) => {
 });
 
 
+// ── Notification Reminders ────────────────────────────────────────────────────
+
+const defaultNotificationRules = [
+  { name: 'Night Shutdown', time: '23:30', message: "It's time for Night Shutdown... complete your 10 mins reset" },
+];
+
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    let rules = await prisma.notificationRule.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'asc' } });
+    if (rules.length === 0) {
+      await prisma.notificationRule.createMany({
+        data: defaultNotificationRules.map((r) => ({ ...r, userId: user.id })),
+      });
+      rules = await prisma.notificationRule.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'asc' } });
+    }
+    res.json(rules);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notifications', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { id, name, message, time, isActive } = req.body;
+    const rule = await prisma.notificationRule.upsert({
+      where: { id: id || 'new' },
+      create: { userId: user.id, name, message, time, isActive: isActive ?? true },
+      update: { name, message, time, isActive: isActive ?? true },
+    });
+    res.json(rule);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/notifications/:id', async (req, res) => {
+  try {
+    await prisma.notificationRule.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notifications/:id/test', async (req, res) => {
+  try {
+    const rule = await prisma.notificationRule.findUnique({ where: { id: req.params.id } });
+    if (!rule) return res.status(404).json({ error: 'Not found' });
+    await sendTelegramMessage(rule.message);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Google Fit Integration ────────────────────────────────────────────────────
 
 app.get('/api/integrations/google-fit/auth', (req, res) => {
@@ -707,4 +769,5 @@ app.post('/api/integrations/google-fit/sync', requireAuth, async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  startReminderScheduler(prisma);
 });
