@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Bell, Send, Trash2, Pencil, Plus, X, Check, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Bell, Send, Trash2, Pencil, Plus, X, Check, Loader2, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
@@ -23,6 +23,88 @@ function formatDays(days) {
   if (JSON.stringify(sorted) === JSON.stringify([1, 2, 3, 4, 5])) return 'Weekdays';
   if (JSON.stringify(sorted) === JSON.stringify([0, 6])) return 'Weekends';
   return sorted.map((d) => DAY_LABELS[d]).join(' ');
+}
+
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+function to24h(hour12, minute, period) {
+  const h = (hour12 % 12) + (period === 'PM' ? 12 : 0);
+  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function formatTime12(time) {
+  const [h24, m] = (time || '00:00').split(':').map(Number);
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const hour12 = ((h24 + 11) % 12) + 1;
+  return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+function TimeColumn({ items, selected, onSelect, format }) {
+  return (
+    <div className="h-40 w-14 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/60">
+      {items.map((item) => (
+        <button
+          key={item}
+          type="button"
+          onClick={() => onSelect(item)}
+          className={`w-full py-1.5 text-xs font-bold transition ${
+            item === selected ? 'bg-amber-500 text-slate-950' : 'text-game-dim hover:bg-slate-800 hover:text-amber-300'
+          }`}
+        >
+          {format(item)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function QuestTimePicker({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!pickerRef.current?.contains(event.target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const [h24, m] = (value || '00:00').split(':').map(Number);
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const hour12 = ((h24 + 11) % 12) + 1;
+
+  return (
+    <div ref={pickerRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-slate-900/90 px-3 py-2 text-sm font-bold text-game-text transition hover:border-amber-400/60 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+      >
+        <Clock className="h-4 w-4 text-amber-400" />
+        {formatTime12(value)}
+      </button>
+
+      {isOpen && (
+        <div role="dialog" aria-label="Choose reminder time" className="absolute z-20 mt-2 flex gap-1.5 rounded-2xl border border-slate-600/80 bg-slate-900 p-2 shadow-2xl shadow-black/50 ring-1 ring-amber-500/10">
+          <TimeColumn items={HOURS_12} selected={hour12} format={String} onSelect={(h) => onChange(to24h(h, m, period))} />
+          <TimeColumn items={MINUTES} selected={m} format={(x) => String(x).padStart(2, '0')} onSelect={(min) => onChange(to24h(hour12, min, period))} />
+          <TimeColumn items={['AM', 'PM']} selected={period} format={(p) => p} onSelect={(p) => onChange(to24h(hour12, m, p))} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function DayToggle({ value, onChange }) {
@@ -58,13 +140,8 @@ function RuleForm({ value, onChange, onSubmit, onCancel, submitLabel }) {
           onChange={(e) => onChange({ ...value, name: e.target.value })}
         />
       </td>
-      <td className="px-4 py-3 w-32">
-        <input
-          type="time"
-          className={inputBase}
-          value={value.time}
-          onChange={(e) => onChange({ ...value, time: e.target.value })}
-        />
+      <td className="px-4 py-3">
+        <QuestTimePicker value={value.time} onChange={(time) => onChange({ ...value, time })} />
       </td>
       <td className="px-4 py-3">
         <input
@@ -203,7 +280,7 @@ export function NotificationRules({ onBack }) {
                   ) : (
                     <tr key={rule.id} className="hover:bg-slate-900/40 transition">
                       <td className="px-4 py-3 font-bold text-game-text">{rule.name}</td>
-                      <td className="px-4 py-3 text-game-dim font-mono text-xs">{rule.time}</td>
+                      <td className="px-4 py-3 text-game-dim font-mono text-xs">{formatTime12(rule.time)}</td>
                       <td className="px-4 py-3 text-game-dim">{rule.message}</td>
                       <td className="px-4 py-3 text-game-dim text-xs">{formatDays(parseDays(rule.daysOfWeek))}</td>
                       <td className="px-4 py-3">
