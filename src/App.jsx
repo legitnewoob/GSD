@@ -10,8 +10,18 @@ import { Budget } from './components/Budget';
 import { Admin } from './components/Admin';
 import { Login } from './components/Login';
 
+const TAB_KEY = 'life-rpg-tab';
+const VALID_TABS = ['daily', 'dashboard', 'game', 'budget', 'weekly', 'admin'];
+
 function AppContent() {
-  const [activeTab, setActiveTab] = useState('daily');
+  const [activeTab, setActiveTabState] = useState(() => {
+    const saved = localStorage.getItem(TAB_KEY);
+    return VALID_TABS.includes(saved) ? saved : 'daily';
+  });
+  const setActiveTab = (tab) => {
+    localStorage.setItem(TAB_KEY, tab);
+    setActiveTabState(tab);
+  };
   const [selectedDate, setSelectedDate] = useState(new Date());
   const {
     config,
