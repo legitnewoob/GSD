@@ -7,7 +7,45 @@ const inputBase =
   'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-game-text placeholder-slate-600 focus:ring-2 focus:ring-amber-500/60 focus:border-amber-500 outline-none transition';
 const btnPrimary = 'bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-lg text-sm transition disabled:opacity-40';
 
-const emptyForm = { name: '', time: '23:30', message: '' };
+const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
+const emptyForm = { name: '', time: '23:30', message: '', daysOfWeek: ALL_DAYS };
+
+function parseDays(daysOfWeek) {
+  if (Array.isArray(daysOfWeek)) return daysOfWeek;
+  return (daysOfWeek || '0,1,2,3,4,5,6').split(',').map(Number);
+}
+
+function formatDays(days) {
+  if (days.length === 7) return 'Every day';
+  const sorted = [...days].sort();
+  if (JSON.stringify(sorted) === JSON.stringify([1, 2, 3, 4, 5])) return 'Weekdays';
+  if (JSON.stringify(sorted) === JSON.stringify([0, 6])) return 'Weekends';
+  return sorted.map((d) => DAY_LABELS[d]).join(' ');
+}
+
+function DayToggle({ value, onChange }) {
+  const toggle = (d) => {
+    onChange(value.includes(d) ? value.filter((x) => x !== d) : [...value, d].sort());
+  };
+  return (
+    <div className="flex items-center gap-1">
+      {DAY_LABELS.map((label, d) => (
+        <button
+          key={d}
+          type="button"
+          onClick={() => toggle(d)}
+          className={`w-6 h-6 rounded text-[11px] font-bold transition ${
+            value.includes(d) ? 'bg-amber-500 text-black' : 'bg-slate-900 text-slate-500 border border-slate-700 hover:border-slate-500'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function RuleForm({ value, onChange, onSubmit, onCancel, submitLabel }) {
   return (
@@ -37,10 +75,13 @@ function RuleForm({ value, onChange, onSubmit, onCancel, submitLabel }) {
         />
       </td>
       <td className="px-4 py-3">
+        <DayToggle value={value.daysOfWeek} onChange={(daysOfWeek) => onChange({ ...value, daysOfWeek })} />
+      </td>
+      <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <button
             onClick={onSubmit}
-            disabled={!value.name || !value.time || !value.message}
+            disabled={!value.name || !value.time || !value.message || value.daysOfWeek.length === 0}
             className="text-emerald-400 hover:text-emerald-300 disabled:opacity-30 transition"
             title={submitLabel}
           >
@@ -82,7 +123,7 @@ export function NotificationRules({ onBack }) {
 
   const startEdit = (rule) => {
     setEditingId(rule.id);
-    setEditRule({ name: rule.name, time: rule.time, message: rule.message });
+    setEditRule({ name: rule.name, time: rule.time, message: rule.message, daysOfWeek: parseDays(rule.daysOfWeek) });
   };
 
   const handleSaveEdit = async (id) => {
@@ -144,6 +185,7 @@ export function NotificationRules({ onBack }) {
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">Time</th>
                   <th className="px-4 py-3">Message</th>
+                  <th className="px-4 py-3">Days</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -163,6 +205,7 @@ export function NotificationRules({ onBack }) {
                       <td className="px-4 py-3 font-bold text-game-text">{rule.name}</td>
                       <td className="px-4 py-3 text-game-dim font-mono text-xs">{rule.time}</td>
                       <td className="px-4 py-3 text-game-dim">{rule.message}</td>
+                      <td className="px-4 py-3 text-game-dim text-xs">{formatDays(parseDays(rule.daysOfWeek))}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <button onClick={() => handleTest(rule.id)} disabled={testingId === rule.id} className="text-slate-500 hover:text-amber-400 transition disabled:opacity-40" title="Send test">

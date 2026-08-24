@@ -23,6 +23,13 @@ function nowInReminderTimezone() {
   };
 }
 
+const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: REMINDER_TIMEZONE, weekday: 'short' });
+
+function todayWeekdayIndex() {
+  return WEEKDAY_INDEX[weekdayFormatter.format(new Date())];
+}
+
 export async function sendTelegramMessage(text) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     throw new Error('TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not configured');
@@ -43,13 +50,17 @@ export function startReminderScheduler(prisma) {
   const check = async () => {
     try {
       const { date, time } = nowInReminderTimezone();
-      const due = await prisma.notificationRule.findMany({
+      const weekday = todayWeekdayIndex();
+      const candidates = await prisma.notificationRule.findMany({
         where: {
           isActive: true,
           time,
           OR: [{ lastSentDate: null }, { lastSentDate: { not: date } }],
         },
       });
+      const due = candidates.filter((rule) =>
+        rule.daysOfWeek.split(',').map(Number).includes(weekday)
+      );
       for (const rule of due) {
         try {
           await sendTelegramMessage(rule.message);

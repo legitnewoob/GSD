@@ -552,11 +552,12 @@ app.get('/api/notifications', async (req, res) => {
 app.post('/api/notifications', async (req, res) => {
   try {
     const user = await getOrCreateUser(req.userId);
-    const { id, name, message, time, isActive } = req.body;
+    const { id, name, message, time, isActive, daysOfWeek } = req.body;
+    const days = Array.isArray(daysOfWeek) ? daysOfWeek.join(',') : (daysOfWeek || '0,1,2,3,4,5,6');
     const rule = await prisma.notificationRule.upsert({
       where: { id: id || 'new' },
-      create: { userId: user.id, name, message, time, isActive: isActive ?? true },
-      update: { name, message, time, isActive: isActive ?? true },
+      create: { userId: user.id, name, message, time, isActive: isActive ?? true, daysOfWeek: days },
+      update: { name, message, time, isActive: isActive ?? true, daysOfWeek: days },
     });
     res.json(rule);
   } catch (err) {

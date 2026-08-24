@@ -202,6 +202,7 @@ model NotificationRule {
   name         String
   message      String
   time         String   // "HH:MM", 24h, in REMINDER_TIMEZONE
+  daysOfWeek   String   @default("0,1,2,3,4,5,6") @map("days_of_week") // comma-separated 0=Sun..6=Sat
   isActive     Boolean  @default(true) @map("is_active")
   lastSentDate String?  @map("last_sent_date") // "YYYY-MM-DD" in REMINDER_TIMEZONE, dedupes sends
   createdAt    DateTime @default(now()) @map("created_at")
