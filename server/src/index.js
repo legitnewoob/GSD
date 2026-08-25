@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 import { startReminderScheduler, sendTelegramMessage } from './scheduler.js';
+import { getVapidPublicKey, sendWebPush } from './webpush.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -582,6 +583,62 @@ app.post('/api/notifications/:id/test', async (req, res) => {
     if (!rule) return res.status(404).json({ error: 'Not found' });
     await sendTelegramMessage(rule.message);
     res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Web Push (browser/PWA notifications) ──────────────────────────────────────
+
+app.get('/api/push/public-key', (req, res) => {
+  res.json({ publicKey: getVapidPublicKey() });
+});
+
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { endpoint, keys } = req.body;
+    if (!endpoint || !keys?.p256dh || !keys?.auth) return res.status(400).json({ error: 'Invalid subscription' });
+    await prisma.pushSubscription.upsert({
+      where: { endpoint },
+      create: { userId: user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+      update: { p256dh: keys.p256dh, auth: keys.auth },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/push/subscribe', async (req, res) => {
+  try {
+    const { endpoint } = req.body;
+    await prisma.pushSubscription.deleteMany({ where: { endpoint } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/push/test', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const subs = await prisma.pushSubscription.findMany({ where: { userId: user.id } });
+    if (subs.length === 0) return res.status(400).json({ error: 'No browser subscriptions found' });
+    let sent = 0;
+    for (const sub of subs) {
+      try {
+        await sendWebPush(sub, { title: 'GSD Test', body: 'Push notifications are working 🎉' });
+        sent++;
+      } catch (err) {
+        if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
+        else console.error('[push] test send failed:', err.message);
+      }
+    }
+    res.json({ ok: true, sent, total: subs.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

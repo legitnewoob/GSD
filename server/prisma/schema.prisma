@@ -21,6 +21,7 @@ model User {
   todos         Todo[]
   googleFitToken GoogleFitToken?
   notificationRules NotificationRule[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -211,6 +212,19 @@ model NotificationRule {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_rules")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
 }
 
 model GoogleFitToken {

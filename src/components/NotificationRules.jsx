@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, Send, Trash2, Pencil, Plus, X, Check, Loader2, Clock } from 'lucide-react';
+import { Bell, Send, Trash2, Pencil, Plus, X, Check, Loader2, Clock, Smartphone, CheckCircle } from 'lucide-react';
 import { api } from '../lib/api';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
 const inputBase =
@@ -173,6 +182,118 @@ function RuleForm({ value, onChange, onSubmit, onCancel, submitLabel }) {
   );
 }
 
+function BrowserNotificationsPanel() {
+  const supported = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+  const [status, setStatus] = useState(supported ? 'checking' : 'unsupported');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    if (!supported) return;
+    if (Notification.permission === 'denied') {
+      setStatus('denied');
+      return;
+    }
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setStatus(sub ? 'enabled' : 'disabled'))
+      .catch(() => setStatus('disabled'));
+  }, [supported]);
+
+  const handleEnable = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setStatus(permission === 'denied' ? 'denied' : 'disabled');
+        return;
+      }
+      const { publicKey } = await api.getPushPublicKey();
+      if (!publicKey) throw new Error("Push isn't configured on the server yet");
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      await api.subscribePush(sub.toJSON());
+      setStatus('enabled');
+    } catch (err) {
+      setResult({ ok: false, error: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await api.unsubscribePush(sub.endpoint);
+        await sub.unsubscribe();
+      }
+      setStatus('disabled');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      await api.testPush();
+      setResult({ ok: true });
+    } catch (err) {
+      setResult({ ok: false, error: err.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={panelBase}>
+      <div className="flex items-center gap-2 mb-1">
+        <Smartphone className="w-5 h-5 text-amber-400" />
+        <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Browser Notifications</h2>
+      </div>
+      <p className="text-xs text-game-dim mb-4">Push reminders straight to this device, alongside Telegram.</p>
+
+      {status === 'checking' && <div className="text-sm text-game-dim">Checking…</div>}
+      {status === 'unsupported' && <div className="text-sm text-game-dim">Not supported in this browser.</div>}
+      {status === 'denied' && (
+        <div className="text-sm text-red-400">Blocked — enable notifications for this site in your browser settings.</div>
+      )}
+      {status === 'disabled' && (
+        <button onClick={handleEnable} disabled={busy} className={btnPrimary}>
+          {busy ? 'Enabling…' : 'Enable browser notifications'}
+        </button>
+      )}
+      {status === 'enabled' && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1 text-xs text-emerald-400 font-bold">
+            <CheckCircle className="w-3.5 h-3.5" /> Enabled on this device
+          </span>
+          <button onClick={handleTest} disabled={busy} className="text-xs text-slate-500 hover:text-amber-400 border border-slate-700 hover:border-amber-500/50 px-3 py-1.5 rounded-lg transition">
+            Send test
+          </button>
+          <button onClick={handleDisable} disabled={busy} className="text-xs text-slate-500 hover:text-red-400 border border-slate-700 hover:border-red-500/50 px-3 py-1.5 rounded-lg transition">
+            Disable
+          </button>
+        </div>
+      )}
+      {result && (
+        <div className={`text-xs mt-2 ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+          {result.ok ? 'Test sent — check your notifications!' : `Error: ${result.error}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function NotificationRules({ onBack }) {
   const [rules, setRules] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -241,6 +362,8 @@ export function NotificationRules({ onBack }) {
           ← Back to Settings
         </button>
       </div>
+
+      <BrowserNotificationsPanel />
 
       <div className={panelBase}>
         <div className="flex items-center justify-between mb-4">

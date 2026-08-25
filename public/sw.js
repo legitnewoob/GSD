@@ -1,5 +1,5 @@
-const SHELL_CACHE = 'gsd-shell-v7';
-const ASSET_CACHE = 'gsd-assets-v7';
+const SHELL_CACHE = 'gsd-shell-v8';
+const ASSET_CACHE = 'gsd-assets-v8';
 const APP_SHELL_URLS = ['/', '/manifest.json', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {
@@ -134,3 +134,31 @@ async function updateShellCache(response) {
   const cache = await caches.open(SHELL_CACHE);
   await cache.put('/', response);
 }
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'GSD', body: 'You have a reminder' };
+  try {
+    payload = event.data.json();
+  } catch {
+    // fall back to default payload above
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: '/favicon.svg',
+      tag: 'gsd-reminder',
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ('focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow('/');
+    })
+  );
+});

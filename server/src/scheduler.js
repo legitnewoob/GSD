@@ -1,3 +1,5 @@
+import { sendWebPush } from './webpush.js';
+
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const REMINDER_TIMEZONE = process.env.REMINDER_TIMEZONE || 'Asia/Kolkata';
@@ -64,13 +66,24 @@ export function startReminderScheduler(prisma) {
       for (const rule of due) {
         try {
           await sendTelegramMessage(rule.message);
-          await prisma.notificationRule.update({
-            where: { id: rule.id },
-            data: { lastSentDate: date },
-          });
         } catch (err) {
-          console.error(`[scheduler] Failed to send reminder "${rule.name}":`, err.message);
+          console.error(`[scheduler] Telegram send failed for "${rule.name}":`, err.message);
         }
+
+        const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
+        for (const sub of subs) {
+          try {
+            await sendWebPush(sub, { title: rule.name, body: rule.message });
+          } catch (err) {
+            if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
+            else console.error(`[scheduler] Push send failed for "${rule.name}":`, err.message);
+          }
+        }
+
+        await prisma.notificationRule.update({
+          where: { id: rule.id },
+          data: { lastSentDate: date },
+        });
       }
     } catch (err) {
       console.error('[scheduler] Reminder check failed:', err.message);

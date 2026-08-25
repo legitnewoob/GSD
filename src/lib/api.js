@@ -75,4 +75,8 @@ export const api = {
   saveNotification: (payload) => request('/api/notifications', { method: 'POST', body: JSON.stringify(payload) }),
   deleteNotification: (id) => request(`/api/notifications/${id}`, { method: 'DELETE' }),
   testNotification: (id) => request(`/api/notifications/${id}/test`, { method: 'POST' }),
+  getPushPublicKey: () => request('/api/push/public-key'),
+  subscribePush: (subscription) => request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) }),
+  unsubscribePush: (endpoint) => request('/api/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+  testPush: () => request('/api/push/test', { method: 'POST' }),
 };
