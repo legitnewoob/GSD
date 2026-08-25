@@ -1,5 +1,5 @@
-const SHELL_CACHE = 'gsd-shell-v8';
-const ASSET_CACHE = 'gsd-assets-v8';
+const SHELL_CACHE = 'gsd-shell-v9';
+const ASSET_CACHE = 'gsd-assets-v9';
 const APP_SHELL_URLS = ['/', '/manifest.json', '/favicon.svg', '/icons.svg'];
 
 self.addEventListener('install', (event) => {
@@ -146,7 +146,10 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(payload.title, {
       body: payload.body,
       icon: '/favicon.svg',
-      tag: 'gsd-reminder',
+      tag: payload.title,
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [200, 100, 200],
     })
   );
 });

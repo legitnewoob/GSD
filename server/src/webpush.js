@@ -23,7 +23,7 @@ export async function sendWebPush(subscription, { title, body }) {
     keys: { p256dh: subscription.p256dh, auth: subscription.auth },
   };
   try {
-    await webpush.sendNotification(pushSubscription, JSON.stringify({ title, body }));
+    await webpush.sendNotification(pushSubscription, JSON.stringify({ title, body }), { urgency: 'high' });
   } catch (err) {
     if (err.statusCode === 404 || err.statusCode === 410) {
       const goneError = new Error('Subscription expired');
