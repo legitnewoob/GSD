@@ -83,19 +83,31 @@ export function CodingProfiles() {
 
   const handleConnect = async () => {
     if (!platform || !username.trim()) return;
-    await api.saveCpProfile({ platform, username: username.trim() });
+    const newProfile = { platform, username: username.trim() };
+    setProfiles((ps) => [...(ps || []), newProfile]);
     setPlatform('');
     setUsername('');
     setAdding(false);
-    await loadProfiles();
-    await loadStats(true);
+    try {
+      await api.saveCpProfile(newProfile);
+      loadStats(true); // background — external platform fetches can take a moment
+    } catch (err) {
+      setProfiles((ps) => ps.filter((p) => p.platform !== newProfile.platform));
+      alert(`Failed to connect: ${err.message}`);
+    }
   };
 
   const handleDisconnect = async (plat) => {
     if (!confirm('Disconnect this profile?')) return;
-    await api.deleteCpProfile(plat);
-    await loadProfiles();
-    await loadStats(true);
+    const previous = profiles;
+    setProfiles((ps) => ps.filter((p) => p.platform !== plat));
+    try {
+      await api.deleteCpProfile(plat);
+      loadStats(true); // background — refresh combined heatmap without the removed platform
+    } catch (err) {
+      setProfiles(previous);
+      alert(`Failed to disconnect: ${err.message}`);
+    }
   };
 
   return (

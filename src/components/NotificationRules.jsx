@@ -313,10 +313,17 @@ export function NotificationRules({ onBack }) {
   }, []);
 
   const handleAdd = async () => {
-    await api.saveNotification(newRule);
+    const tempId = `temp-${Date.now()}`;
+    setRules((rs) => [...rs, { ...newRule, id: tempId }]);
     setNewRule(emptyForm);
     setAdding(false);
-    await load();
+    try {
+      const saved = await api.saveNotification(newRule);
+      setRules((rs) => rs.map((r) => (r.id === tempId ? saved : r)));
+    } catch (err) {
+      setRules((rs) => rs.filter((r) => r.id !== tempId));
+      alert(`Failed to add reminder: ${err.message}`);
+    }
   };
 
   const startEdit = (rule) => {
@@ -325,15 +332,28 @@ export function NotificationRules({ onBack }) {
   };
 
   const handleSaveEdit = async (id) => {
-    await api.saveNotification({ id, ...editRule });
+    const previous = rules;
+    setRules((rs) => rs.map((r) => (r.id === id ? { ...r, ...editRule, daysOfWeek: editRule.daysOfWeek.join(',') } : r)));
     setEditingId(null);
-    await load();
+    try {
+      const saved = await api.saveNotification({ id, ...editRule });
+      setRules((rs) => rs.map((r) => (r.id === id ? saved : r)));
+    } catch (err) {
+      setRules(previous);
+      alert(`Failed to save changes: ${err.message}`);
+    }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this reminder?')) return;
-    await api.deleteNotification(id);
-    await load();
+    const previous = rules;
+    setRules((rs) => rs.filter((r) => r.id !== id));
+    try {
+      await api.deleteNotification(id);
+    } catch (err) {
+      setRules(previous);
+      alert(`Failed to delete: ${err.message}`);
+    }
   };
 
   const handleTest = async (id) => {

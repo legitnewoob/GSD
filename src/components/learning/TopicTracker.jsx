@@ -49,21 +49,41 @@ export function TopicTracker({ category }) {
 
   const handleAdd = async () => {
     if (!newName.trim()) return;
-    await api.saveLearningTopic({ category, name: newName.trim(), status: 'todo', order: (topics?.length || 0) });
+    const tempId = `temp-${Date.now()}`;
+    const payload = { category, name: newName.trim(), status: 'todo', order: (topics?.length || 0) };
+    setTopics((ts) => [...ts, { ...payload, id: tempId }]);
     setNewName('');
     setAdding(false);
-    await load();
+    try {
+      const saved = await api.saveLearningTopic(payload);
+      setTopics((ts) => ts.map((t) => (t.id === tempId ? saved : t)));
+    } catch (err) {
+      setTopics((ts) => ts.filter((t) => t.id !== tempId));
+      alert(`Failed to add topic: ${err.message}`);
+    }
   };
 
   const handleStatusChange = async (topic, status) => {
+    const previous = topics;
     setTopics((ts) => ts.map((t) => (t.id === topic.id ? { ...t, status } : t)));
-    await api.saveLearningTopic({ ...topic, status });
+    try {
+      await api.saveLearningTopic({ ...topic, status });
+    } catch (err) {
+      setTopics(previous);
+      alert(`Failed to update status: ${err.message}`);
+    }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this topic?')) return;
-    await api.deleteLearningTopic(id);
-    await load();
+    const previous = topics;
+    setTopics((ts) => ts.filter((t) => t.id !== id));
+    try {
+      await api.deleteLearningTopic(id);
+    } catch (err) {
+      setTopics(previous);
+      alert(`Failed to delete: ${err.message}`);
+    }
   };
 
   return (
