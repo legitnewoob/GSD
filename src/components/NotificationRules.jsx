@@ -341,14 +341,11 @@ export function NotificationRules({ onBack }) {
     setTestResult(null);
     try {
       const result = await api.testNotification(id);
-      const parts = [];
-      parts.push(result.push.total === 0 ? 'Push: no devices enabled' : `Push: ${result.push.sent}/${result.push.total} devices`);
-      if (!result.telegram.attempted) {
-        parts.push('Telegram: skipped (push succeeded)');
-      } else {
-        parts.push(result.telegram.ok ? 'Telegram ✓ (fallback)' : `Telegram failed: ${result.telegram.error}`);
-      }
-      setTestResult({ id, ok: result.ok, summary: parts.join(' · ') });
+      let summary;
+      if (result.push.sent > 0) summary = 'Sent via app';
+      else if (result.telegram.ok) summary = 'Sent via Telegram';
+      else summary = 'Failed to send';
+      setTestResult({ id, ok: result.ok, summary });
     } catch (err) {
       setTestResult({ id, ok: false, summary: `Error: ${err.message}` });
     } finally {
