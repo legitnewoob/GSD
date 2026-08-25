@@ -7,6 +7,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 import { startReminderScheduler, deliverReminder } from './scheduler.js';
 import { getVapidPublicKey, sendWebPush } from './webpush.js';
+import { getPlatformStats } from './cpStats.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -20,6 +21,29 @@ const defaultBudgetCategories = [
   { name: 'Medical', type: 'daily', budgetedAmount: 1000, order: 8 },
   { name: 'Emergency', type: 'fixed', budgetedAmount: 2000, order: 9 },
 ];
+
+const defaultLearningTopics = {
+  cp: [
+    'Arrays & Strings', 'Two Pointers', 'Binary Search', 'Sorting', 'Greedy',
+    'Dynamic Programming', 'Graphs (BFS/DFS)', 'Trees', 'Number Theory',
+    'Segment Trees / BIT', 'Union-Find (DSU)', 'Bitmasking',
+  ],
+  dev: [
+    'Frontend Fundamentals', 'React / Component Patterns', 'State Management',
+    'REST API Design', 'Databases & SQL', 'Auth & Security', 'Testing',
+    'CI/CD & Deployment', 'Caching Strategies', 'Microservices Basics',
+  ],
+  system_design: [
+    'Scalability Basics', 'Load Balancing', 'Caching (CDN/Redis)',
+    'DB Sharding & Replication', 'Consistent Hashing', 'Message Queues',
+    'CAP Theorem', 'Rate Limiting', 'API Design at Scale', 'Case Studies',
+  ],
+  ai_engineering: [
+    'Prompt Engineering', 'Embeddings & Vector DBs', 'RAG Pipelines',
+    'Fine-tuning vs Few-shot', 'LLM Evaluation', 'Agents & Tool Use',
+    'Transformer Basics', 'Model Serving / Inference', 'AI Safety', 'MLOps Basics',
+  ],
+};
 
 
 const app = express();
@@ -646,6 +670,131 @@ app.post('/api/push/test', async (req, res) => {
       }
     }
     res.json({ ok: true, sent, total: subs.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Learning ───────────────────────────────────────────────────────────────────
+
+app.get('/api/learning/topics', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const category = req.query.category;
+    if (!category || !defaultLearningTopics[category]) return res.status(400).json({ error: 'Invalid category' });
+
+    let topics = await prisma.learningTopic.findMany({
+      where: { userId: user.id, category },
+      orderBy: { order: 'asc' },
+    });
+    if (topics.length === 0) {
+      await prisma.learningTopic.createMany({
+        data: defaultLearningTopics[category].map((name, i) => ({ userId: user.id, category, name, order: i })),
+      });
+      topics = await prisma.learningTopic.findMany({ where: { userId: user.id, category }, orderBy: { order: 'asc' } });
+    }
+    res.json(topics);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/learning/topics', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { id, category, name, status, order } = req.body;
+    const topic = await prisma.learningTopic.upsert({
+      where: { id: id || 'new' },
+      create: { userId: user.id, category, name, status: status || 'todo', order: order ?? 0 },
+      update: { name, status: status || 'todo', order: order ?? 0 },
+    });
+    res.json(topic);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/learning/topics/:id', async (req, res) => {
+  try {
+    await prisma.learningTopic.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/learning/cp-profiles', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const profiles = await prisma.codingProfile.findMany({ where: { userId: user.id } });
+    res.json(profiles);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/learning/cp-profiles', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { platform, username } = req.body;
+    if (!['codeforces', 'leetcode', 'atcoder'].includes(platform)) return res.status(400).json({ error: 'Invalid platform' });
+    const profile = await prisma.codingProfile.upsert({
+      where: { userId_platform: { userId: user.id, platform } },
+      create: { userId: user.id, platform, username },
+      update: { username },
+    });
+    res.json(profile);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/learning/cp-profiles/:platform', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    await prisma.codingProfile.deleteMany({ where: { userId: user.id, platform: req.params.platform } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/learning/cp-stats', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const force = req.query.force === 'true';
+    const profiles = await prisma.codingProfile.findMany({ where: { userId: user.id } });
+
+    const combinedHeatmap = new Map();
+    const platforms = await Promise.all(
+      profiles.map(async (profile) => {
+        const stats = await getPlatformStats(profile.platform, profile.username, force);
+        if (!stats.error) {
+          for (const [date, count] of stats.heatmap) {
+            combinedHeatmap.set(date, (combinedHeatmap.get(date) || 0) + count);
+          }
+        }
+        return {
+          platform: profile.platform,
+          username: profile.username,
+          solvedCount: stats.solvedCount ?? null,
+          lastSolvedDate: stats.lastSolvedDate ?? null,
+          error: stats.error || null,
+        };
+      })
+    );
+
+    res.json({
+      platforms,
+      heatmap: Array.from(combinedHeatmap.entries()).map(([date, count]) => ({ date, count })),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

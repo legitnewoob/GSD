@@ -22,6 +22,8 @@ model User {
   googleFitToken GoogleFitToken?
   notificationRules NotificationRule[]
   pushSubscriptions PushSubscription[]
+  learningTopics LearningTopic[]
+  codingProfiles CodingProfile[]
 
   @@map("users")
 }
@@ -225,6 +227,35 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("push_subscriptions")
+}
+
+model LearningTopic {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  category  String   // 'cp' | 'dev' | 'system_design' | 'ai_engineering'
+  name      String
+  status    String   @default("todo") // 'todo' | 'in_progress' | 'done'
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("learning_topics")
+}
+
+model CodingProfile {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  platform  String   // 'codeforces' | 'leetcode' | 'atcoder'
+  username  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@map("coding_profiles")
 }
 
 model GoogleFitToken {

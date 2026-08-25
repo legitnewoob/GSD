@@ -79,4 +79,11 @@ export const api = {
   subscribePush: (subscription) => request('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription) }),
   unsubscribePush: (endpoint) => request('/api/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
   testPush: () => request('/api/push/test', { method: 'POST' }),
+  getLearningTopics: (category) => request(`/api/learning/topics?category=${category}`),
+  saveLearningTopic: (payload) => request('/api/learning/topics', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteLearningTopic: (id) => request(`/api/learning/topics/${id}`, { method: 'DELETE' }),
+  getCpProfiles: () => request('/api/learning/cp-profiles'),
+  saveCpProfile: (payload) => request('/api/learning/cp-profiles', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteCpProfile: (platform) => request(`/api/learning/cp-profiles/${platform}`, { method: 'DELETE' }),
+  getCpStats: (force) => request(`/api/learning/cp-stats${force ? '?force=true' : ''}`),
 };

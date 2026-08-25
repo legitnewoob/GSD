@@ -8,10 +8,11 @@ import { GameDashboard } from './components/GameDashboard';
 import { WeeklyReview } from './components/WeeklyReview';
 import { Budget } from './components/Budget';
 import { Admin } from './components/Admin';
+import { Learning } from './components/Learning';
 import { Login } from './components/Login';
 
 const TAB_KEY = 'life-rpg-tab';
-const VALID_TABS = ['daily', 'dashboard', 'game', 'budget', 'weekly', 'admin'];
+const VALID_TABS = ['daily', 'dashboard', 'game', 'budget', 'weekly', 'learning', 'admin'];
 
 function AppContent() {
   const [activeTab, setActiveTabState] = useState(() => {
@@ -125,6 +126,7 @@ function AppContent() {
       />
     );
     if (activeTab === 'weekly') return <WeeklyReview config={config} entries={entries} />;
+    if (activeTab === 'learning') return <Learning />;
     if (activeTab === 'admin') {
       return (
         <Admin
