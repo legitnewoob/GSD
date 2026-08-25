@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ListChecks, Plus, Trash2, X, Check } from 'lucide-react';
 import { api } from '../../lib/api';
+
+const STATUS_RANK = { in_progress: 0, todo: 1, done: 2 };
+const sortByStatus = (topics) =>
+  [...topics].sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.order - b.order);
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
 const inputBase =
@@ -98,20 +103,30 @@ export function TopicTracker({ category }) {
             </div>
           )}
 
-          {topics.map((topic) => (
-            <div key={topic.id} className="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${STATUSES.find((s) => s.key === topic.status)?.dot}`} />
-                <span className="text-sm text-game-text font-bold truncate">{topic.name}</span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <StatusSelect value={topic.status} onChange={(status) => handleStatusChange(topic, status)} />
-                <button onClick={() => handleDelete(topic.id)} className="text-slate-500 hover:text-red-400 transition" title="Remove topic">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+          <AnimatePresence initial={false}>
+            {sortByStatus(topics).map((topic) => (
+              <motion.div
+                key={topic.id}
+                layout
+                initial={{ opacity: 0, x: -24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 24 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                className="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${STATUSES.find((s) => s.key === topic.status)?.dot}`} />
+                  <span className="text-sm text-game-text font-bold truncate">{topic.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <StatusSelect value={topic.status} onChange={(status) => handleStatusChange(topic, status)} />
+                  <button onClick={() => handleDelete(topic.id)} className="text-slate-500 hover:text-red-400 transition" title="Remove topic">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
 
           {topics.length === 0 && !adding && (
             <p className="text-game-dim text-sm">No topics yet — add one to start tracking.</p>

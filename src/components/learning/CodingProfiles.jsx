@@ -19,6 +19,36 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function computeStreak(heatmap) {
+  if (!heatmap || heatmap.length === 0) return null;
+  const activeDates = new Set(heatmap.filter((h) => h.count > 0).map((h) => h.date));
+  if (activeDates.size === 0) return null;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const today = new Date(`${todayStr}T00:00:00Z`);
+  const yesterdayStr = new Date(today.getTime() - ONE_DAY_MS).toISOString().slice(0, 10);
+
+  let anchor = null;
+  if (activeDates.has(todayStr)) anchor = today;
+  else if (activeDates.has(yesterdayStr)) anchor = new Date(today.getTime() - ONE_DAY_MS);
+
+  if (anchor) {
+    let days = 0;
+    let cursor = anchor;
+    while (activeDates.has(cursor.toISOString().slice(0, 10))) {
+      days++;
+      cursor = new Date(cursor.getTime() - ONE_DAY_MS);
+    }
+    return { active: true, days };
+  }
+
+  const lastActive = [...activeDates].sort().pop();
+  const daysSince = Math.round((today - new Date(`${lastActive}T00:00:00Z`)) / ONE_DAY_MS);
+  return { active: false, days: daysSince };
+}
+
 export function CodingProfiles() {
   const [profiles, setProfiles] = useState(null);
   const [stats, setStats] = useState(null);
@@ -26,6 +56,8 @@ export function CodingProfiles() {
   const [adding, setAdding] = useState(false);
   const [platform, setPlatform] = useState('');
   const [username, setUsername] = useState('');
+
+  const streak = computeStreak(stats?.heatmap);
 
   const loadProfiles = async () => {
     const data = await api.getCpProfiles();
@@ -78,6 +110,21 @@ export function CodingProfiles() {
         </button>
       </div>
       <p className="text-xs text-game-dim mb-4">Live solve counts, last-solved dates, and combined activity across your platforms.</p>
+
+      {streak && (
+        <div
+          className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg border text-sm font-bold w-fit ${
+            streak.active
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+              : 'bg-slate-900 border-slate-700 text-game-dim'
+          }`}
+        >
+          <Flame className={`w-4 h-4 ${streak.active ? 'text-amber-400' : 'text-slate-500'}`} />
+          {streak.active
+            ? `Streak: ${streak.days} day${streak.days === 1 ? '' : 's'}`
+            : `Haven't solved a problem in ${streak.days} day${streak.days === 1 ? '' : 's'}`}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         {profiles?.map((prof) => {

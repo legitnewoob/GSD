@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, LayoutDashboard, Trophy, BarChart2, Crown, Wallet, Save, Settings, GraduationCap, Menu, X } from 'lucide-react';
 
 const tabs = [
@@ -85,31 +86,42 @@ export function Navigation({ active, onChange, entries = [], saving = false }) {
       </div>
 
       {/* Mobile dropdown panel */}
-      {menuOpen && (
-        <div className="md:hidden absolute inset-x-0 top-full z-30 bg-game-panel border-b border-game-border shadow-2xl px-4 py-3">
-          <div className="max-w-6xl mx-auto flex flex-col gap-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = active === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => selectTab(tab.key)}
-                  className={[
-                    'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition border text-left',
-                    isActive
-                      ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
-                      : 'border-transparent hover:bg-slate-800 text-game-dim hover:text-game-text',
-                  ].join(' ')}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="md:hidden absolute inset-x-0 top-full z-30 bg-game-panel border-b border-game-border shadow-2xl overflow-hidden"
+          >
+            <div className="max-w-6xl mx-auto flex flex-col gap-1 px-4 py-3">
+              {tabs.map((tab, i) => {
+                const Icon = tab.icon;
+                const isActive = active === tab.key;
+                return (
+                  <motion.button
+                    key={tab.key}
+                    onClick={() => selectTab(tab.key)}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: 0.08 + i * 0.05, ease: 'easeOut' }}
+                    className={[
+                      'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold uppercase tracking-wide transition-colors border text-left',
+                      isActive
+                        ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
+                        : 'border-transparent hover:bg-slate-800 text-game-dim hover:text-game-text',
+                    ].join(' ')}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{tab.label}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }
