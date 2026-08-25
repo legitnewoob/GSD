@@ -581,8 +581,32 @@ app.post('/api/notifications/:id/test', async (req, res) => {
   try {
     const rule = await prisma.notificationRule.findUnique({ where: { id: req.params.id } });
     if (!rule) return res.status(404).json({ error: 'Not found' });
-    await sendTelegramMessage(rule.message);
-    res.json({ ok: true });
+
+    let telegramOk = true;
+    let telegramError = null;
+    try {
+      await sendTelegramMessage(rule.message);
+    } catch (err) {
+      telegramOk = false;
+      telegramError = err.message;
+    }
+
+    const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
+    let pushSent = 0;
+    for (const sub of subs) {
+      try {
+        await sendWebPush(sub, { title: rule.name, body: rule.message });
+        pushSent++;
+      } catch (err) {
+        if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
+      }
+    }
+
+    res.json({
+      ok: telegramOk || pushSent > 0,
+      telegram: { ok: telegramOk, error: telegramError },
+      push: { sent: pushSent, total: subs.length },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

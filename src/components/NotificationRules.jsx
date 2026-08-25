@@ -340,10 +340,13 @@ export function NotificationRules({ onBack }) {
     setTestingId(id);
     setTestResult(null);
     try {
-      await api.testNotification(id);
-      setTestResult({ id, ok: true });
+      const result = await api.testNotification(id);
+      const parts = [];
+      parts.push(result.telegram.ok ? 'Telegram ✓' : `Telegram failed: ${result.telegram.error}`);
+      parts.push(result.push.total === 0 ? 'Push: no devices enabled' : `Push: ${result.push.sent}/${result.push.total} devices`);
+      setTestResult({ id, ok: result.ok, summary: parts.join(' · ') });
     } catch (err) {
-      setTestResult({ id, ok: false, error: err.message });
+      setTestResult({ id, ok: false, summary: `Error: ${err.message}` });
     } finally {
       setTestingId(null);
     }
@@ -420,7 +423,7 @@ export function NotificationRules({ onBack }) {
                         </div>
                         {testResult?.id === rule.id && (
                           <div className={`text-xs mt-1 ${testResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
-                            {testResult.ok ? 'Sent!' : `Error: ${testResult.error}`}
+                            {testResult.summary}
                           </div>
                         )}
                       </td>
