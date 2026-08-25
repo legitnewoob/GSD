@@ -70,20 +70,28 @@ export function startReminderScheduler(prisma) {
           console.error(`[scheduler] Telegram send failed for "${rule.name}":`, err.message);
         }
 
-        const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
-        for (const sub of subs) {
-          try {
-            await sendWebPush(sub, { title: rule.name, body: rule.message });
-          } catch (err) {
-            if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
-            else console.error(`[scheduler] Push send failed for "${rule.name}":`, err.message);
+        try {
+          const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
+          for (const sub of subs) {
+            try {
+              await sendWebPush(sub, { title: rule.name, body: rule.message });
+            } catch (err) {
+              if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
+              else console.error(`[scheduler] Push send failed for "${rule.name}":`, err.message);
+            }
           }
+        } catch (err) {
+          console.error(`[scheduler] Push lookup failed for "${rule.name}":`, err.message);
         }
 
-        await prisma.notificationRule.update({
-          where: { id: rule.id },
-          data: { lastSentDate: date },
-        });
+        try {
+          await prisma.notificationRule.update({
+            where: { id: rule.id },
+            data: { lastSentDate: date },
+          });
+        } catch (err) {
+          console.error(`[scheduler] Failed to mark "${rule.name}" as sent:`, err.message);
+        }
       }
     } catch (err) {
       console.error('[scheduler] Reminder check failed:', err.message);
