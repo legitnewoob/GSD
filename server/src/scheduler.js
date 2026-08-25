@@ -48,6 +48,45 @@ export async function sendTelegramMessage(text) {
   return res.json();
 }
 
+// Push first; Telegram is only a fallback when push reaches zero devices
+// (no subscriptions, or every subscription failed/expired).
+export async function deliverReminder(prisma, rule) {
+  let pushSent = 0;
+  let pushTotal = 0;
+  try {
+    const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
+    pushTotal = subs.length;
+    for (const sub of subs) {
+      try {
+        await sendWebPush(sub, { title: rule.name, body: rule.message });
+        pushSent++;
+      } catch (err) {
+        if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
+        else console.error(`[scheduler] Push send failed for "${rule.name}":`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error(`[scheduler] Push lookup failed for "${rule.name}":`, err.message);
+  }
+
+  let telegramAttempted = false;
+  let telegramOk = null;
+  let telegramError = null;
+  if (pushSent === 0) {
+    telegramAttempted = true;
+    try {
+      await sendTelegramMessage(rule.message);
+      telegramOk = true;
+    } catch (err) {
+      telegramOk = false;
+      telegramError = err.message;
+      console.error(`[scheduler] Telegram fallback failed for "${rule.name}":`, err.message);
+    }
+  }
+
+  return { pushSent, pushTotal, telegramAttempted, telegramOk, telegramError };
+}
+
 export function startReminderScheduler(prisma) {
   const check = async () => {
     try {
@@ -64,26 +103,7 @@ export function startReminderScheduler(prisma) {
         rule.daysOfWeek.split(',').map(Number).includes(weekday)
       );
       for (const rule of due) {
-        try {
-          await sendTelegramMessage(rule.message);
-        } catch (err) {
-          console.error(`[scheduler] Telegram send failed for "${rule.name}":`, err.message);
-        }
-
-        try {
-          const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
-          for (const sub of subs) {
-            try {
-              await sendWebPush(sub, { title: rule.name, body: rule.message });
-            } catch (err) {
-              if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
-              else console.error(`[scheduler] Push send failed for "${rule.name}":`, err.message);
-            }
-          }
-        } catch (err) {
-          console.error(`[scheduler] Push lookup failed for "${rule.name}":`, err.message);
-        }
-
+        await deliverReminder(prisma, rule);
         try {
           await prisma.notificationRule.update({
             where: { id: rule.id },

@@ -342,8 +342,12 @@ export function NotificationRules({ onBack }) {
     try {
       const result = await api.testNotification(id);
       const parts = [];
-      parts.push(result.telegram.ok ? 'Telegram ✓' : `Telegram failed: ${result.telegram.error}`);
       parts.push(result.push.total === 0 ? 'Push: no devices enabled' : `Push: ${result.push.sent}/${result.push.total} devices`);
+      if (!result.telegram.attempted) {
+        parts.push('Telegram: skipped (push succeeded)');
+      } else {
+        parts.push(result.telegram.ok ? 'Telegram ✓ (fallback)' : `Telegram failed: ${result.telegram.error}`);
+      }
       setTestResult({ id, ok: result.ok, summary: parts.join(' · ') });
     } catch (err) {
       setTestResult({ id, ok: false, summary: `Error: ${err.message}` });

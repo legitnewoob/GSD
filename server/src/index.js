@@ -5,7 +5,7 @@ import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
-import { startReminderScheduler, sendTelegramMessage } from './scheduler.js';
+import { startReminderScheduler, deliverReminder } from './scheduler.js';
 import { getVapidPublicKey, sendWebPush } from './webpush.js';
 
 const defaultBudgetCategories = [
@@ -582,30 +582,13 @@ app.post('/api/notifications/:id/test', async (req, res) => {
     const rule = await prisma.notificationRule.findUnique({ where: { id: req.params.id } });
     if (!rule) return res.status(404).json({ error: 'Not found' });
 
-    let telegramOk = true;
-    let telegramError = null;
-    try {
-      await sendTelegramMessage(rule.message);
-    } catch (err) {
-      telegramOk = false;
-      telegramError = err.message;
-    }
-
-    const subs = await prisma.pushSubscription.findMany({ where: { userId: rule.userId } });
-    let pushSent = 0;
-    for (const sub of subs) {
-      try {
-        await sendWebPush(sub, { title: rule.name, body: rule.message });
-        pushSent++;
-      } catch (err) {
-        if (err.gone) await prisma.pushSubscription.delete({ where: { id: sub.id } });
-      }
-    }
-
+    const result = await deliverReminder(prisma, rule);
     res.json({
-      ok: telegramOk || pushSent > 0,
-      telegram: { ok: telegramOk, error: telegramError },
-      push: { sent: pushSent, total: subs.length },
+      ok: result.pushSent > 0 || result.telegramOk === true,
+      push: { sent: result.pushSent, total: result.pushTotal },
+      telegram: result.telegramAttempted
+        ? { attempted: true, ok: result.telegramOk, error: result.telegramError }
+        : { attempted: false },
     });
   } catch (err) {
     console.error(err);
