@@ -174,9 +174,38 @@ export function useLifeRpg() {
 
   const scheduleSave = useCallback((entry) => {
     const key = entry.date;
-    if (saveQueue.current[key]) clearTimeout(saveQueue.current[key]);
-    saveQueue.current[key] = setTimeout(() => persist(entry), 800);
+    if (saveQueue.current[key]) clearTimeout(saveQueue.current[key].timer);
+    const timer = setTimeout(() => {
+      delete saveQueue.current[key];
+      persist(entry);
+    }, 800);
+    saveQueue.current[key] = { timer, entry };
   }, [persist]);
+
+  // If the tab is backgrounded, closed, or navigated away from while a debounced
+  // save is still pending, the setTimeout above may never fire (browsers throttle
+  // or kill timers in hidden/closed tabs). Flush immediately so the edit isn't lost.
+  const flushPendingSaves = useCallback(() => {
+    Object.entries(saveQueue.current).forEach(([key, pending]) => {
+      clearTimeout(pending.timer);
+      delete saveQueue.current[key];
+      persist(pending.entry);
+    });
+  }, [persist]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flushPendingSaves();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', flushPendingSaves);
+    window.addEventListener('beforeunload', flushPendingSaves);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', flushPendingSaves);
+      window.removeEventListener('beforeunload', flushPendingSaves);
+    };
+  }, [flushPendingSaves]);
 
   const save = useCallback(
     (entry) => {
