@@ -221,6 +221,7 @@ async function getOrCreateUser(userId) {
         userId: user.id,
         name: h.label,
         order: i,
+        xpValue: h.xpValue ?? 5,
       })),
     });
     await prisma.category.createMany({
