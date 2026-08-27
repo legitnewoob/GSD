@@ -334,14 +334,13 @@ export function DailyJournal({
 
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">DAILY QUEST</h1>
-          <p className="text-game-dim text-sm">Fill one card per evening. It auto-saves as you go.</p>
-        </div>
-        <div className="sticky top-2 z-30 w-full sm:w-auto sm:text-right">
-          <QuestDatePicker value={draft.date} onChange={onDateChange} />
-        </div>
+      <div>
+        <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">DAILY QUEST</h1>
+        <p className="text-game-dim text-sm">Fill one card per evening. It auto-saves as you go.</p>
+      </div>
+
+      <div className="sticky top-2 z-30 flex justify-end">
+        <QuestDatePicker value={draft.date} onChange={onDateChange} />
       </div>
 
       <div className={`${panelBase} relative overflow-hidden`}>
