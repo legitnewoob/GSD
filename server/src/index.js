@@ -8,6 +8,8 @@ import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 import { startReminderScheduler, deliverReminder } from './scheduler.js';
 import { getVapidPublicKey, sendWebPush } from './webpush.js';
 import { getPlatformStats } from './cpStats.js';
+import { syncGoogleFit } from './googleFitSync.js';
+import { startGoogleFitScheduler } from './googleFitScheduler.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -975,83 +977,17 @@ app.get('/api/integrations/google-fit/debug', async (req, res) => {
 app.post('/api/integrations/google-fit/sync', requireAuth, async (req, res) => {
   try {
     const { days = 7 } = req.body;
-    const user = await getOrCreateUser(req.userId);
-    let gToken = await prisma.googleFitToken.findUnique({ where: { userId: req.userId } });
-    if (!gToken) return res.status(400).json({ error: 'Not connected to Google Fit' });
-
-    // Refresh token if expired
-    if (new Date() >= gToken.expiresAt) {
-      if (!gToken.refreshToken) return res.status(400).json({ error: 'Token expired. Please reconnect Google Fit.' });
-      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          refresh_token: gToken.refreshToken, client_id: GOOGLE_CLIENT_ID,
-          client_secret: GOOGLE_CLIENT_SECRET, grant_type: 'refresh_token',
-        }),
-      });
-      const refreshed = await refreshRes.json();
-      if (!refreshed.access_token) return res.status(400).json({ error: 'Failed to refresh token. Please reconnect.' });
-      gToken = await prisma.googleFitToken.update({
-        where: { userId: req.userId },
-        data: { accessToken: refreshed.access_token, expiresAt: new Date(Date.now() + (refreshed.expires_in || 3600) * 1000) },
-      });
-    }
-
-    // Fetch steps and distance separately so a missing scope on one doesn't break the other
-    const endMs = Date.now();
-    const startMs = endMs - days * 24 * 60 * 60 * 1000;
-    const authHeader = { Authorization: `Bearer ${gToken.accessToken}`, 'Content-Type': 'application/json' };
-    const body = (types) => JSON.stringify({ aggregateBy: types.map((t) => ({ dataTypeName: t })), bucketByTime: { durationMillis: 86400000 }, startTimeMillis: startMs, endTimeMillis: endMs });
-
-    const [stepsRes, distRes] = await Promise.all([
-      fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', { method: 'POST', headers: authHeader, body: body(['com.google.step_count.delta']) }),
-      fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', { method: 'POST', headers: authHeader, body: body(['com.google.distance.delta']) }),
-    ]);
-
-    const stepsData = await stepsRes.json();
-    const distData = distRes.ok ? await distRes.json() : { bucket: [] };
-
-    if (!distRes.ok) console.warn('[GFit] distance fetch failed (scope missing?):', await distRes.text().catch(() => ''));
-
-    // Build per-date maps
-    const stepsMap = {}, distMap = {};
-    for (const bucket of stepsData.bucket || []) {
-      const d = new Date(parseInt(bucket.startTimeMillis));
-      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      let s = 0;
-      for (const dataset of bucket.dataset || []) for (const pt of dataset.point || []) for (const v of pt.value || []) s += (v.intVal || 0);
-      stepsMap[ds] = s; // store 0 too so we can log it
-    }
-    for (const bucket of distData.bucket || []) {
-      const d = new Date(parseInt(bucket.startTimeMillis));
-      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      let m = 0;
-      for (const dataset of bucket.dataset || []) for (const pt of dataset.point || []) for (const v of pt.value || []) m += (v.fpVal || 0);
-      distMap[ds] = parseFloat((m / 1000).toFixed(2));
-    }
-
-    // Overwrite ALL historical data — always write whatever Google Fit says
-    const allDates = new Set([...Object.keys(stepsMap), ...Object.keys(distMap)]);
-    let synced = 0;
-    for (const dateStr of allDates) {
-      const steps = stepsMap[dateStr] > 0 ? stepsMap[dateStr] : null;
-      const distanceKm = distMap[dateStr] > 0 ? distMap[dateStr] : null;
-      await prisma.entry.upsert({
-        where: { userId_date: { userId: user.id, date: dateStr } },
-        create: { userId: user.id, date: dateStr, steps, runWalk: distanceKm },
-        update: { steps, runWalk: distanceKm }, // always overwrite, even with null
-      });
-      if (steps || distanceKm) synced++;
-    }
-    res.json({ ok: true, synced, days, stepsdays: Object.keys(stepsMap).filter(d => stepsMap[d] > 0).length, distdays: Object.keys(distMap).filter(d => distMap[d] > 0).length });
+    await getOrCreateUser(req.userId);
+    const result = await syncGoogleFit(prisma, req.userId, days);
+    res.json({ ok: true, ...result });
   } catch (err) {
     console.error('Google Fit sync error:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   startReminderScheduler(prisma);
+  startGoogleFitScheduler(prisma);
 });
