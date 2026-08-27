@@ -93,7 +93,7 @@ export function Navigation({ active, onChange, entries = [], saving = false }) {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="md:hidden absolute inset-x-0 top-full z-30 bg-game-panel border-b border-game-border shadow-2xl overflow-hidden"
+            className="md:hidden absolute inset-x-0 top-full z-50 bg-game-panel border-b border-game-border shadow-2xl overflow-hidden"
           >
             <div className="max-w-6xl mx-auto flex flex-col gap-1 px-4 py-3">
               {tabs.map((tab, i) => {
