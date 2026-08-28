@@ -1,5 +1,30 @@
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const REMINDER_TIMEZONE = process.env.REMINDER_TIMEZONE || 'Asia/Kolkata';
+
+const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: REMINDER_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+const wallClockFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: REMINDER_TIMEZONE, hourCycle: 'h23',
+  year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+});
+
+function toDateStr(ms) {
+  return dateFormatter.format(new Date(ms));
+}
+
+// How far REMINDER_TIMEZONE's wall clock is ahead of UTC, in ms, at the given instant.
+function timezoneOffsetMs(date = new Date()) {
+  const p = Object.fromEntries(wallClockFormatter.formatToParts(date).map((x) => [x.type, x.value]));
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - date.getTime();
+}
+
+// Midnight in REMINDER_TIMEZONE, `daysAgo` days back, expressed as a UTC epoch ms.
+function localMidnightMs(daysAgo) {
+  const offsetMs = timezoneOffsetMs();
+  const utcMidnightOfLocalDate = new Date(`${toDateStr(Date.now())}T00:00:00Z`).getTime();
+  return utcMidnightOfLocalDate - offsetMs - daysAgo * 24 * 60 * 60 * 1000;
+}
 
 function httpError(message, status) {
   return Object.assign(new Error(message), { status });
@@ -27,9 +52,12 @@ export async function syncGoogleFit(prisma, userId, days = 7) {
     });
   }
 
-  // Fetch steps and distance separately so a missing scope on one doesn't break the other
+  // Fetch steps and distance separately so a missing scope on one doesn't break the other.
+  // Buckets are aligned to REMINDER_TIMEZONE midnight, not an arbitrary "now - N days" instant —
+  // otherwise the most recent bucket's start almost always falls on yesterday's calendar date,
+  // and today's data gets mislabeled/merged into yesterday's entry instead of its own.
   const endMs = Date.now();
-  const startMs = endMs - days * 24 * 60 * 60 * 1000;
+  const startMs = localMidnightMs(days - 1);
   const authHeader = { Authorization: `Bearer ${gToken.accessToken}`, 'Content-Type': 'application/json' };
   const body = (types) => JSON.stringify({ aggregateBy: types.map((t) => ({ dataTypeName: t })), bucketByTime: { durationMillis: 86400000 }, startTimeMillis: startMs, endTimeMillis: endMs });
 
@@ -46,15 +74,13 @@ export async function syncGoogleFit(prisma, userId, days = 7) {
 
   const stepsMap = {}, distMap = {};
   for (const bucket of stepsData.bucket || []) {
-    const d = new Date(parseInt(bucket.startTimeMillis));
-    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ds = toDateStr(parseInt(bucket.startTimeMillis));
     let s = 0;
     for (const dataset of bucket.dataset || []) for (const pt of dataset.point || []) for (const v of pt.value || []) s += (v.intVal || 0);
     stepsMap[ds] = s;
   }
   for (const bucket of distData.bucket || []) {
-    const d = new Date(parseInt(bucket.startTimeMillis));
-    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const ds = toDateStr(parseInt(bucket.startTimeMillis));
     let m = 0;
     for (const dataset of bucket.dataset || []) for (const pt of dataset.point || []) for (const v of pt.value || []) m += (v.fpVal || 0);
     distMap[ds] = parseFloat((m / 1000).toFixed(2));
