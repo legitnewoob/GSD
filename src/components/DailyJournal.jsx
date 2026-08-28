@@ -553,6 +553,14 @@ export function DailyJournal({
                 className={inputBase}
                 placeholder={f.placeholder || ''}
               />
+              {f.key === 'money' && todayAllowance > 0 && (
+                <div className="mt-1.5 text-xs font-bold">
+                  <span className={(parseFloat(draft.money) || 0) > todayAllowance ? 'text-red-400' : 'text-emerald-400'}>
+                    ₹{draft.money || 0}
+                  </span>
+                  <span className="text-game-dim"> / ₹{todayAllowance} today</span>
+                </div>
+              )}
             </div>
           );
         })}

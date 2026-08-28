@@ -59,8 +59,11 @@ function AppContent() {
     const monthlyDailyPool = dailyCats.reduce((s, c) => s + (c.budgetedAmount || 0), 0);
     const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    // Spend through the end of yesterday only — today's own spending shouldn't shrink
+    // today's own allowance as you log it. This locks the number for the whole day;
+    // it only moves once "today" itself changes to a new date.
     const totalSpent = entries
-      .filter((e) => e.date >= monthStart && e.date <= todayStr)
+      .filter((e) => e.date >= monthStart && e.date < todayStr)
       .reduce((s, e) => s + (parseFloat(e.money) || 0), 0);
     const remaining = monthlyDailyPool - totalSpent;
     return daysLeft > 0 ? Math.round(remaining / daysLeft) : 0;
