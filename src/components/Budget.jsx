@@ -38,8 +38,12 @@ function computeTodayAllowance(entries, budgetCategories) {
   // Carry-forward allowance for today
   const allowance = dayOfMonth * baseDaily - totalSpentBeforeToday;
 
-  // Forward-looking: (remaining budget) / days left including today
-  const remainingBudget = monthlyDailyPool - totalSpentThisMonth;
+  // Forward-looking: (remaining budget) / days left including today.
+  // Locked to spend-through-yesterday, same reasoning as `allowance` above — today's own
+  // spending shouldn't shrink today's own rate as you log it. Recalculates once the date
+  // actually changes, naturally spreading any saved/overspent amount across whatever days
+  // are genuinely left rather than a special-cased catch-up window.
+  const remainingBudget = monthlyDailyPool - totalSpentBeforeToday;
   const dailyFromBudget = daysLeft > 0 ? remainingBudget / daysLeft : null;
 
   return { allowance, baseDaily, monthlyDailyPool, daysInMonth, dayOfMonth, daysLeft, totalSpentThisMonth, remainingBudget, dailyFromBudget };
