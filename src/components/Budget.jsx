@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react';
-import { format, parseISO, getDaysInMonth, startOfMonth } from 'date-fns';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import {
+  format, parseISO, getDaysInMonth, startOfMonth, isSameMonth, isPast,
+  addDays, addMonths, endOfMonth, endOfWeek, isSameDay, startOfDay, startOfWeek, subMonths,
+} from 'date-fns';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts';
 import {
-  Plus, Trash2, Edit3, Check, X, CreditCard, ChevronDown, ChevronUp, AlertTriangle,
+  Plus, Trash2, Edit3, Check, X, CreditCard, ChevronDown, ChevronUp, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays,
 } from 'lucide-react';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
@@ -247,14 +250,145 @@ function AddCategoryRow({ onAdd }) {
   );
 }
 
+// Compact themed calendar dropdown for a due date. Unlike the journal's date picker,
+// future dates are the whole point here, so nothing is disabled — just past/today/future
+// styling plus quick "Today" and "Clear" actions.
+function DueDatePicker({ value, onChange }) {
+  const selectedDate = value ? parseISO(value) : null;
+  const today = startOfDay(new Date());
+  const [isOpen, setIsOpen] = useState(false);
+  const [displayMonth, setDisplayMonth] = useState(startOfMonth(selectedDate || today));
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!pickerRef.current?.contains(event.target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  const firstDay = startOfWeek(startOfMonth(displayMonth), { weekStartsOn: 0 });
+  const lastDay = endOfWeek(endOfMonth(displayMonth), { weekStartsOn: 0 });
+  const calendarDays = [];
+  for (let day = firstDay; day <= lastDay; day = addDays(day, 1)) calendarDays.push(day);
+
+  const chooseDate = (date) => {
+    onChange(format(date, 'yyyy-MM-dd'));
+    setIsOpen(false);
+  };
+
+  return (
+    <div ref={pickerRef} className="relative w-full text-left">
+      <button
+        type="button"
+        onClick={() => {
+          if (!isOpen) setDisplayMonth(startOfMonth(selectedDate || today));
+          setIsOpen((open) => !open);
+        }}
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className="group flex w-full items-center justify-between gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-left transition hover:border-amber-500/60 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+      >
+        <span className="flex items-center gap-2 text-sm">
+          <CalendarDays className="h-4 w-4 text-amber-400/80 shrink-0" />
+          <span className={selectedDate ? 'text-game-text font-bold' : 'text-slate-500'}>
+            {selectedDate ? format(selectedDate, 'dd MMM yyyy') : 'No due date'}
+          </span>
+        </span>
+        <ChevronRight className={['h-3.5 w-3.5 text-game-dim transition-transform shrink-0', isOpen ? 'rotate-90 text-amber-400' : ''].join(' ')} />
+      </button>
+
+      {isOpen && (
+        <div role="dialog" aria-label="Choose due date" className="absolute inset-x-0 z-20 mt-2 rounded-2xl border border-slate-600/80 bg-slate-900 p-3 shadow-2xl shadow-black/50 ring-1 ring-amber-500/10 sm:w-[280px]">
+          <div className="mb-3 flex items-center justify-between px-1">
+            <button
+              type="button"
+              aria-label="Previous month"
+              onClick={() => setDisplayMonth((month) => subMonths(month, 1))}
+              className="rounded-lg p-1.5 text-game-dim transition hover:bg-slate-800 hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-sm font-black tracking-wide text-game-text">{format(displayMonth, 'MMMM yyyy')}</span>
+            <button
+              type="button"
+              aria-label="Next month"
+              onClick={() => setDisplayMonth((month) => addMonths(month, 1))}
+              className="rounded-lg p-1.5 text-game-dim transition hover:bg-slate-800 hover:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+              <span key={`${day}-${index}`} className="py-1 text-[10px] font-black text-game-dim">{day}</span>
+            ))}
+            {calendarDays.map((day) => {
+              const selected = selectedDate && isSameDay(day, selectedDate);
+              const isToday = isSameDay(day, today);
+              const isOverdue = !selected && day < today;
+              const outsideMonth = !isSameMonth(day, displayMonth);
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  aria-label={format(day, 'EEEE, MMMM d, yyyy')}
+                  aria-pressed={selected}
+                  onClick={() => chooseDate(day)}
+                  className={[
+                    'relative h-8 rounded-lg text-xs font-bold transition focus:outline-none focus:ring-2 focus:ring-amber-500/70',
+                    selected ? 'bg-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.45)]' : 'text-game-text hover:bg-slate-800 hover:text-amber-300',
+                    isToday && !selected ? 'border border-amber-500/60 text-amber-400' : '',
+                    isOverdue ? 'opacity-40' : '',
+                    outsideMonth && !selected ? 'text-slate-600 hover:text-slate-400' : '',
+                  ].join(' ')}
+                >
+                  {format(day, 'd')}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex gap-2 border-t border-slate-700 pt-3">
+            <button
+              type="button"
+              onClick={() => chooseDate(today)}
+              className="flex-1 rounded-lg border border-amber-500/30 bg-amber-500/10 py-2 text-xs font-black uppercase tracking-wider text-amber-400 transition hover:bg-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => { onChange(''); setIsOpen(false); }}
+              className="flex-1 rounded-lg border border-slate-600 bg-slate-800 py-2 text-xs font-black uppercase tracking-wider text-game-dim transition hover:bg-slate-700 hover:text-game-text focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreditCardItem({ card, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: card.name, currentBalance: card.currentBalance, creditLimit: card.creditLimit || '', rewardPoints: card.rewardPoints ?? '' });
+  const [form, setForm] = useState({ name: card.name, currentBalance: card.currentBalance, creditLimit: card.creditLimit || '', rewardPoints: card.rewardPoints ?? '', dueDate: card.dueDate ? card.dueDate.slice(0, 10) : '' });
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave({ ...card, ...form, currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints !== '' ? parseFloat(form.rewardPoints) : null });
+    await onSave({ ...card, ...form, currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints !== '' ? parseFloat(form.rewardPoints) : null, dueDate: form.dueDate || null });
     setSaving(false);
     setEditing(false);
   };
@@ -298,6 +432,10 @@ function CreditCardItem({ card, onSave, onDelete }) {
                 className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-game-text outline-none focus:border-amber-500" placeholder="0" />
             </div>
           </div>
+          <div>
+            <label className="text-xs text-game-dim uppercase tracking-wide mb-1 block">Due Date</label>
+            <DueDatePicker value={form.dueDate} onChange={(d) => setForm((f) => ({ ...f, dueDate: d }))} />
+          </div>
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={saving} className={btnPrimary}>Save</button>
             <button onClick={() => setEditing(false)} className={btnGhost}>Cancel</button>
@@ -320,12 +458,17 @@ function CreditCardItem({ card, onSave, onDelete }) {
                 ₹{card.currentBalance.toLocaleString()}
               </div>
               {isPaid && <div className="text-xs text-emerald-400 font-bold -mt-1">₹0 outstanding</div>}
-              <div className="flex gap-3 mt-0.5">
+              <div className="flex gap-3 mt-0.5 flex-wrap items-center">
                 {utilizationPct !== null && !isPaid && (
                   <span className="text-xs text-game-dim">{utilizationPct.toFixed(0)}% of ₹{card.creditLimit.toLocaleString()}</span>
                 )}
                 {card.rewardPoints != null && (
                   <span className="text-xs text-amber-400 font-bold">{card.rewardPoints.toLocaleString()} pts</span>
+                )}
+                {card.dueDate && !isPaid && (
+                  <span className={`text-xs font-bold ${isPast(parseISO(card.dueDate)) ? 'text-red-400' : 'text-game-dim'}`}>
+                    Due {format(parseISO(card.dueDate), 'dd MMM')}
+                  </span>
                 )}
               </div>
             </div>
@@ -350,7 +493,7 @@ function CreditCardItem({ card, onSave, onDelete }) {
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-            <button onClick={() => { setForm({ name: card.name, currentBalance: card.currentBalance, creditLimit: card.creditLimit || '', rewardPoints: card.rewardPoints ?? '' }); setEditing(true); }}
+            <button onClick={() => { setForm({ name: card.name, currentBalance: card.currentBalance, creditLimit: card.creditLimit || '', rewardPoints: card.rewardPoints ?? '', dueDate: card.dueDate ? card.dueDate.slice(0, 10) : '' }); setEditing(true); }}
               className="p-1.5 rounded text-game-dim hover:text-amber-400 hover:bg-amber-400/10 transition">
               <Edit3 className="w-4 h-4" />
             </button>
@@ -374,15 +517,15 @@ function CreditCardItem({ card, onSave, onDelete }) {
 
 function AddCreditCardButton({ onAdd }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', currentBalance: '', creditLimit: '', rewardPoints: '' });
+  const [form, setForm] = useState({ name: '', currentBalance: '', creditLimit: '', rewardPoints: '', dueDate: '' });
   const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    await onAdd({ name: form.name.trim(), currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints ? parseFloat(form.rewardPoints) : null });
+    await onAdd({ name: form.name.trim(), currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints ? parseFloat(form.rewardPoints) : null, dueDate: form.dueDate || null });
     setSaving(false);
-    setForm({ name: '', currentBalance: '', creditLimit: '', rewardPoints: '' });
+    setForm({ name: '', currentBalance: '', creditLimit: '', rewardPoints: '', dueDate: '' });
     setOpen(false);
   };
 
@@ -405,6 +548,10 @@ function AddCreditCardButton({ onAdd }) {
           className={inputBase} placeholder="Limit (optional)" />
         <input type="number" value={form.rewardPoints} onChange={(e) => setForm((f) => ({ ...f, rewardPoints: e.target.value }))}
           className={inputBase} placeholder="Points" />
+      </div>
+      <div>
+        <label className="text-xs text-game-dim uppercase tracking-wide mb-1 block">Due Date</label>
+        <DueDatePicker value={form.dueDate} onChange={(d) => setForm((f) => ({ ...f, dueDate: d }))} />
       </div>
       <div className="flex gap-2">
         <button onClick={handleAdd} disabled={saving || !form.name.trim()} className={btnPrimary}>Add card</button>
@@ -440,6 +587,9 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const totalAllocated = totalFixed + monthlyDailyPool;
   const totalCcDebt = creditCards.filter((c) => !c.isPaid).reduce((s, c) => s + (c.currentBalance || 0), 0);
   const totalRewardPoints = creditCards.reduce((s, c) => s + (c.rewardPoints || 0), 0);
+  const ccDebtDueThisMonth = creditCards
+    .filter((c) => !c.isPaid && c.dueDate && isSameMonth(parseISO(c.dueDate), new Date()))
+    .reduce((s, c) => s + (c.currentBalance || 0), 0);
 
   const cashVal = cashBalance === '' ? null : parseFloat(cashBalance);
   const bankVal = bankBalance === '' ? null : parseFloat(bankBalance);
@@ -457,7 +607,7 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const balanceAfterAllocations = hasBalanceSet ? totalAvailable - totalAllocated : null;
 
   // Alerts
-  const ccExceedsBalance = hasBalanceSet && totalCcDebt > totalAvailable;
+  const ccExceedsBalance = hasBalanceSet && ccDebtDueThisMonth > totalAvailable;
   const overBudget = hasBalanceSet && totalAllocated > totalAvailable;
 
   const chartData = entries.map((e) => ({
@@ -506,9 +656,9 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
           <div>
             <div className="font-black text-red-400 text-sm">CC Debt Exceeds Available Balance</div>
             <div className="text-sm text-game-dim mt-0.5">
-              You owe <span className="text-red-400 font-bold">₹{totalCcDebt.toLocaleString()}</span> on credit cards but only have{' '}
+              You owe <span className="text-red-400 font-bold">₹{ccDebtDueThisMonth.toLocaleString()}</span> on credit cards due this month but only have{' '}
               <span className="text-amber-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available.{' '}
-              Shortfall: <span className="text-red-400 font-bold">₹{(totalCcDebt - totalAvailable).toLocaleString()}</span>
+              Shortfall: <span className="text-red-400 font-bold">₹{(ccDebtDueThisMonth - totalAvailable).toLocaleString()}</span>
             </div>
           </div>
         </div>

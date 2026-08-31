@@ -575,12 +575,12 @@ app.post('/api/budget/credit-cards', async (req, res) => {
     if (!budgetSetting) {
       budgetSetting = await prisma.budgetSetting.create({ data: { userId: user.id } });
     }
-    const { id, name, currentBalance, creditLimit, rewardPoints, isPaid, order } = req.body;
+    const { id, name, currentBalance, creditLimit, rewardPoints, dueDate, isPaid, order } = req.body;
     const balance = isPaid ? 0 : (currentBalance || 0);
     const card = await prisma.creditCard.upsert({
       where: { id: id || 'new' },
-      create: { budgetSettingId: budgetSetting.id, name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, isPaid: isPaid || false, order: order ?? 0 },
-      update: { name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, isPaid: isPaid !== undefined ? isPaid : undefined, order: order ?? 0 },
+      create: { budgetSettingId: budgetSetting.id, name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, dueDate: dueDate ? new Date(dueDate) : null, isPaid: isPaid || false, order: order ?? 0 },
+      update: { name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, dueDate: dueDate ? new Date(dueDate) : null, isPaid: isPaid !== undefined ? isPaid : undefined, order: order ?? 0 },
     });
     res.json(card);
   } catch (err) {

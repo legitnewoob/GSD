@@ -185,6 +185,7 @@ model CreditCard {
   currentBalance  Float    @default(0) @map("current_balance")
   creditLimit     Float?   @map("credit_limit")
   rewardPoints    Float?   @map("reward_points")
+  dueDate         DateTime? @map("due_date")
   isPaid          Boolean  @default(false) @map("is_paid")
   order           Int      @default(0)
   isActive        Boolean  @default(true) @map("is_active")
