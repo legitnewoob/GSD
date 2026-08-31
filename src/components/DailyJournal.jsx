@@ -554,38 +554,20 @@ export function DailyJournal({
                 placeholder={f.placeholder || ''}
               />
               {f.key === 'money' && (
-                <>
-                  <div className="mt-1.5 text-xs font-bold">
-                    {(() => {
-                      const spent = parseFloat(draft.money) || 0;
-                      const diff = todayAllowance - spent;
-                      const over = diff < 0;
-                      return (
-                        <>
-                          <span className={over ? 'text-red-400' : 'text-emerald-400'}>₹{spent}</span>
-                          <span className="text-game-dim"> / ₹{todayAllowance} today</span>
-                          {over && <span className="text-red-400"> · ₹{Math.abs(diff)} over</span>}
-                        </>
-                      );
-                    })()}
-                  </div>
-                  <div className="mt-2 flex gap-1">
-                    {['bank', 'cash'].map((source) => (
-                      <button
-                        key={source}
-                        type="button"
-                        onClick={() => updateField('moneySource', source)}
-                        className={`flex-1 rounded-lg py-1 text-[11px] font-black uppercase tracking-wide transition ${
-                          (draft.moneySource || 'bank') === source
-                            ? 'bg-amber-500 text-slate-950'
-                            : 'bg-slate-800 text-game-dim border border-slate-600 hover:text-game-text'
-                        }`}
-                      >
-                        {source === 'bank' ? 'Bank' : 'Cash'}
-                      </button>
-                    ))}
-                  </div>
-                </>
+                <div className="mt-1.5 text-xs font-bold">
+                  {(() => {
+                    const spent = parseFloat(draft.money) || 0;
+                    const diff = todayAllowance - spent;
+                    const over = diff < 0;
+                    return (
+                      <>
+                        <span className={over ? 'text-red-400' : 'text-emerald-400'}>₹{spent}</span>
+                        <span className="text-game-dim"> / ₹{todayAllowance} today</span>
+                        {over && <span className="text-red-400"> · ₹{Math.abs(diff)} over</span>}
+                      </>
+                    );
+                  })()}
+                </div>
               )}
             </div>
           );
