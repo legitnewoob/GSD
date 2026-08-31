@@ -393,15 +393,11 @@ function CreditCardItem({ card, onSave, onDelete }) {
     setEditing(false);
   };
 
+  // Just zeroes the outstanding balance — name, limit, points, and due date stay
+  // as-is so the card is ready for the next cycle's amount to be typed in.
   const handleMarkPaid = async () => {
     setSaving(true);
-    await onSave({ ...card, isPaid: true, currentBalance: 0 });
-    setSaving(false);
-  };
-
-  const handleUnmarkPaid = async () => {
-    setSaving(true);
-    await onSave({ ...card, isPaid: false });
+    await onSave({ ...card, currentBalance: 0 });
     setSaving(false);
   };
 
@@ -474,25 +470,14 @@ function CreditCardItem({ card, onSave, onDelete }) {
             </div>
           </div>
           <div className="flex gap-1 shrink-0 items-start">
-            {!isPaid ? (
-              <button
-                onClick={handleMarkPaid}
-                disabled={saving}
-                title="Mark bill as paid — zeroes balance"
-                className="p-1.5 rounded text-game-dim hover:text-emerald-400 hover:bg-emerald-400/10 transition disabled:opacity-40"
-              >
-                <Check className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                onClick={handleUnmarkPaid}
-                disabled={saving}
-                title="Unmark paid"
-                className="p-1.5 rounded text-emerald-400 hover:text-game-dim hover:bg-slate-700 transition disabled:opacity-40"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <button
+              onClick={handleMarkPaid}
+              disabled={saving}
+              title="Mark as paid — zeroes balance, keeps everything else for next cycle"
+              className="p-1.5 rounded text-game-dim hover:text-emerald-400 hover:bg-emerald-400/10 transition disabled:opacity-40"
+            >
+              <Check className="w-4 h-4" />
+            </button>
             <button onClick={() => { setForm({ name: card.name, currentBalance: card.currentBalance, creditLimit: card.creditLimit || '', rewardPoints: card.rewardPoints ?? '', dueDate: card.dueDate ? card.dueDate.slice(0, 10) : '' }); setEditing(true); }}
               className="p-1.5 rounded text-game-dim hover:text-amber-400 hover:bg-amber-400/10 transition">
               <Edit3 className="w-4 h-4" />
