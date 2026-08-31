@@ -154,14 +154,6 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
           <span className="text-game-text text-sm font-bold">{cat.name}</span>
-          <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${cat.type === 'fixed' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-            {cat.type === 'fixed' ? 'Fixed' : 'Daily pool'}
-          </span>
-          {cat.type === 'fixed' && (
-            <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-700/50 text-game-dim">
-              {(cat.paymentSource || 'bank') === 'bank' ? 'Bank' : 'Cash'}
-            </span>
-          )}
         </div>
         <div className="text-right shrink-0">
           <span className="text-game-gold font-black text-sm">₹{cat.budgetedAmount.toLocaleString()}</span>
