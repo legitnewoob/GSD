@@ -18,17 +18,21 @@ git checkout "$BRANCH"
 git pull --ff-only origin "$BRANCH"
 
 echo ""
-echo "🐳 Rebuilding Docker containers..."
-docker compose down
-docker compose up -d --build
+echo "🐳 Building new images (old containers keep serving traffic)..."
+docker compose build
 
 echo ""
-echo "☁️ Restarting Cloudflared..."
-sudo systemctl restart cloudflared
+echo "🔄 Swapping to new containers..."
+docker compose up -d
 
 echo ""
-echo "⏳ Waiting for services..."
-sleep 5
+echo "⏳ Waiting for backend to come up..."
+for i in $(seq 1 20); do
+    if curl -fsS http://127.0.0.1:4000/api/health > /dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
 
 echo ""
 echo "🗃️ Running database setup..."
