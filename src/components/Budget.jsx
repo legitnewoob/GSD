@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { format, parseISO, getDaysInMonth, startOfMonth } from 'date-fns';
-import { api } from '../lib/api';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts';
@@ -423,7 +422,6 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const [bankBalance, setBankBalance] = useState(config.budgetSetting?.bankBalance ?? '');
   const [balanceEditing, setBalanceEditing] = useState(false);
   const [quickAdd, setQuickAdd] = useState('');
-  const [clearingSpend, setClearingSpend] = useState(false);
   const [showChart, setShowChart] = useState(false);
 
   const budgetCategories = useMemo(() => config.budgetCategories || [], [config.budgetCategories]);
@@ -492,14 +490,6 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
     setBankBalance(newVal);
     await onSaveBudget({ bankBalance: current + amount });
     setQuickAdd('');
-  };
-
-  const handleClearSpending = async () => {
-    if (!confirm('Clear all spending entries for this month? This cannot be undone.')) return;
-    setClearingSpend(true);
-    await api.clearSpending();
-    setClearingSpend(false);
-    window.location.reload();
   };
 
   return (
@@ -851,9 +841,6 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
       <div className={panelBase}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Spending Log</h2>
-          <button onClick={handleClearSpending} disabled={clearingSpend} className="text-xs text-red-400 hover:text-red-300 border border-red-400/30 hover:border-red-400/60 px-3 py-1.5 rounded-lg transition disabled:opacity-40">
-            {clearingSpend ? 'Clearing…' : 'Clear this month'}
-          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">

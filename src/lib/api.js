@@ -63,7 +63,6 @@ export const api = {
   deleteBudgetCategory: (id) => request(`/api/budget/categories/${id}`, { method: 'DELETE' }),
   saveCreditCard: (payload) => request('/api/budget/credit-cards', { method: 'POST', body: JSON.stringify(payload) }),
   deleteCreditCard: (id) => request(`/api/budget/credit-cards/${id}`, { method: 'DELETE' }),
-  clearSpending: (month) => request(`/api/budget/spending${month ? `?month=${month}` : ''}`, { method: 'DELETE' }),
   getBudgetSnapshots: () => request('/api/budget/snapshots'),
   captureBudgetSnapshot: (month) => request('/api/budget/snapshots/capture', { method: 'POST', body: JSON.stringify({ month }) }),
   getTodos: () => request('/api/todos'),
