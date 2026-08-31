@@ -556,6 +556,16 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const [quickAdd, setQuickAdd] = useState('');
   const [showChart, setShowChart] = useState(false);
 
+  // cashBalance/bankBalance are local drafts (so typing doesn't fight the server), but they
+  // need to pick up balance changes that happen elsewhere — CC payments, daily spend, fixed
+  // category spend — without waiting for a full reload. Skip syncing while the user is
+  // actively editing so it doesn't clobber what they're typing.
+  useEffect(() => {
+    if (balanceEditing) return;
+    setCashBalance(config.budgetSetting?.cashBalance ?? '');
+    setBankBalance(config.budgetSetting?.bankBalance ?? '');
+  }, [config.budgetSetting?.cashBalance, config.budgetSetting?.bankBalance, balanceEditing]);
+
   const budgetCategories = useMemo(() => config.budgetCategories || [], [config.budgetCategories]);
   const creditCards = config.creditCards || [];
 
