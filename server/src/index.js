@@ -239,17 +239,25 @@ async function getOrCreateUser(userId) {
   return user;
 }
 
-// Draws `delta` (positive = spend, negative = refund) from the user's Bank balance.
-// Keeps "Money I Have" in sync with logged spend instead of it being a pure manual snapshot.
-async function adjustBankBalance(userId, delta) {
+// Draws `delta` (positive = spend, negative = refund) from the user's Bank or Cash balance,
+// whichever `source` says. Keeps "Money I Have" in sync with logged spend instead of it being
+// a pure manual snapshot. Returns both balances so callers can hand back whichever changed.
+async function adjustBalance(userId, source, delta) {
   if (!delta) return undefined;
   const bs = await prisma.budgetSetting.findUnique({ where: { userId } });
   if (!bs) return undefined;
+  const field = source === 'cash' ? 'cashBalance' : 'bankBalance';
   const updated = await prisma.budgetSetting.update({
     where: { userId },
-    data: { bankBalance: (bs.bankBalance || 0) - delta },
+    data: { [field]: (bs[field] || 0) - delta },
   });
-  return updated.bankBalance;
+  return { bankBalance: updated.bankBalance, cashBalance: updated.cashBalance };
+}
+
+// Applies two potential adjustments (e.g. refund old source, draw new source) and merges
+// their resulting balances so a source switch only needs one response payload.
+function mergeBalances(...results) {
+  return results.reduce((acc, r) => (r ? { ...acc, ...r } : acc), undefined);
 }
 
 app.use('/api', (req, res, next) => {
@@ -346,17 +354,29 @@ app.post('/api/entries', async (req, res) => {
     };
 
     const existingEntry = await prisma.entry.findUnique({ where: { userId_date: { userId: user.id, date } } });
-    const previousBankDeducted = existingEntry?.bankDeducted || 0;
+    const previousDeducted = existingEntry?.moneyDeducted || 0;
+    const previousSource = existingEntry?.moneySource || 'bank';
     const newMoney = entryData.money || 0;
+    const newSource = payload.moneySource || previousSource;
+    entryData.moneySource = newSource;
 
     const entry = await prisma.entry.upsert({
       where: { userId_date: { userId: user.id, date } },
-      create: { userId: user.id, date, ...entryData, bankDeducted: newMoney },
-      update: { ...entryData, bankDeducted: newMoney, deletedAt: null },
+      create: { userId: user.id, date, ...entryData, moneyDeducted: newMoney },
+      update: { ...entryData, moneyDeducted: newMoney, deletedAt: null },
     });
 
-    const moneyDelta = newMoney - previousBankDeducted;
-    const newBankBalance = moneyDelta ? await adjustBankBalance(user.id, moneyDelta) : undefined;
+    // A source switch (e.g. Bank -> Cash) refunds the old source in full and draws the
+    // new source in full, instead of taking a same-source delta.
+    let balances;
+    if (previousSource === newSource) {
+      const delta = newMoney - previousDeducted;
+      if (delta) balances = await adjustBalance(user.id, newSource, delta);
+    } else {
+      const refund = previousDeducted ? await adjustBalance(user.id, previousSource, -previousDeducted) : undefined;
+      const draw = newMoney ? await adjustBalance(user.id, newSource, newMoney) : undefined;
+      balances = mergeBalances(refund, draw);
+    }
 
     if (payload.habits) {
       await prisma.entryHabit.deleteMany({ where: { entryId: entry.id } });
@@ -378,7 +398,7 @@ app.post('/api/entries', async (req, res) => {
       where: { id: entry.id },
       include: { habits: { include: { habit: true } }, categories: { include: { category: true } } },
     });
-    res.json({ ...updated, bankBalance: newBankBalance });
+    res.json({ ...updated, bankBalance: balances?.bankBalance, cashBalance: balances?.cashBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -388,13 +408,13 @@ app.post('/api/entries', async (req, res) => {
 app.delete('/api/entries/:id', async (req, res) => {
   try {
     const entry = await prisma.entry.findUnique({ where: { id: req.params.id } });
-    const newBankBalance = entry?.bankDeducted ? await adjustBankBalance(entry.userId, -entry.bankDeducted) : undefined;
+    const balances = entry?.moneyDeducted ? await adjustBalance(entry.userId, entry.moneySource || 'bank', -entry.moneyDeducted) : undefined;
     // Soft delete — never destroy journal data. Hidden from the app, but recoverable
-    // (clear deletedAt directly in the DB) if a deletion was accidental. bankDeducted is
+    // (clear deletedAt directly in the DB) if a deletion was accidental. moneyDeducted is
     // zeroed since it's already been refunded above, so bulk operations (Clear this month)
     // can't double-refund it later.
-    await prisma.entry.update({ where: { id: req.params.id }, data: { deletedAt: new Date(), bankDeducted: 0 } });
-    res.json({ ok: true, bankBalance: newBankBalance });
+    await prisma.entry.update({ where: { id: req.params.id }, data: { deletedAt: new Date(), moneyDeducted: 0 } });
+    res.json({ ok: true, bankBalance: balances?.bankBalance, cashBalance: balances?.cashBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -529,28 +549,37 @@ app.post('/api/budget/categories', async (req, res) => {
     if (!budgetSetting) {
       budgetSetting = await prisma.budgetSetting.create({ data: { userId: user.id } });
     }
-    const { id, name, type, budgetedAmount, spentAmount, order } = req.body;
+    const { id, name, type, budgetedAmount, spentAmount, order, paymentSource } = req.body;
     const resolvedType = type || 'daily';
 
     const existing = id ? await prisma.budgetCategory.findUnique({ where: { id } }) : null;
+    const resolvedSource = paymentSource || existing?.paymentSource || 'bank';
 
     const category = await prisma.budgetCategory.upsert({
       where: { id: id || 'new' },
-      create: { budgetSettingId: budgetSetting.id, name, type: resolvedType, budgetedAmount: budgetedAmount || 0, spentAmount: spentAmount || 0, order: order ?? 0 },
-      update: { name, type: resolvedType, budgetedAmount: budgetedAmount || 0, spentAmount: spentAmount !== undefined ? spentAmount : undefined, order: order ?? 0 },
+      create: { budgetSettingId: budgetSetting.id, name, type: resolvedType, budgetedAmount: budgetedAmount || 0, spentAmount: spentAmount || 0, paymentSource: resolvedSource, order: order ?? 0 },
+      update: { name, type: resolvedType, budgetedAmount: budgetedAmount || 0, spentAmount: spentAmount !== undefined ? spentAmount : undefined, paymentSource: resolvedSource, order: order ?? 0 },
     });
 
     // Fixed categories' spentAmount is a direct "have I paid this" tracker (unlike daily
     // categories, whose spend is derived from Entry.money and already synced there) — draw
-    // the delta from Bank so it doesn't need a separate manual balance update.
-    let newBankBalance;
+    // the delta from whichever balance (Bank/Cash) is configured for this category. A
+    // source switch refunds the old one in full and draws the new one in full.
+    let balances;
     if (resolvedType === 'fixed' && spentAmount !== undefined) {
       const previousSpent = existing?.spentAmount || 0;
-      const delta = spentAmount - previousSpent;
-      if (delta) newBankBalance = await adjustBankBalance(user.id, delta);
+      const previousSource = existing?.paymentSource || 'bank';
+      if (previousSource === resolvedSource) {
+        const delta = spentAmount - previousSpent;
+        if (delta) balances = await adjustBalance(user.id, resolvedSource, delta);
+      } else {
+        const refund = previousSpent ? await adjustBalance(user.id, previousSource, -previousSpent) : undefined;
+        const draw = spentAmount ? await adjustBalance(user.id, resolvedSource, spentAmount) : undefined;
+        balances = mergeBalances(refund, draw);
+      }
     }
 
-    res.json({ ...category, bankBalance: newBankBalance });
+    res.json({ ...category, bankBalance: balances?.bankBalance, cashBalance: balances?.cashBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -589,13 +618,13 @@ app.post('/api/budget/credit-cards', async (req, res) => {
     // A drop in outstanding balance means the card was actually paid down — that money
     // really left Bank. A rise (a new charge) is just recorded debt, not a bank transaction,
     // so only decreases draw from Bank (and can take it negative, same as any real payment).
-    let newBankBalance;
+    let balances;
     if (existing) {
       const paidDown = (existing.currentBalance || 0) - balance;
-      if (paidDown > 0) newBankBalance = await adjustBankBalance(user.id, paidDown);
+      if (paidDown > 0) balances = await adjustBalance(user.id, 'bank', paidDown);
     }
 
-    res.json({ ...card, bankBalance: newBankBalance });
+    res.json({ ...card, bankBalance: balances?.bankBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -621,14 +650,20 @@ app.delete('/api/budget/spending', async (req, res) => {
 
     const affected = await prisma.entry.findMany({
       where: { userId: user.id, date: { startsWith: prefix }, deletedAt: null },
-      select: { bankDeducted: true },
+      select: { moneyDeducted: true, moneySource: true },
     });
-    const totalRefund = affected.reduce((s, e) => s + (e.bankDeducted || 0), 0);
-    if (totalRefund) await adjustBankBalance(user.id, -totalRefund);
+    const refundBySource = affected.reduce((acc, e) => {
+      const source = e.moneySource || 'bank';
+      acc[source] = (acc[source] || 0) + (e.moneyDeducted || 0);
+      return acc;
+    }, {});
+    for (const [source, amount] of Object.entries(refundBySource)) {
+      if (amount) await adjustBalance(user.id, source, -amount);
+    }
 
     await prisma.entry.updateMany({
       where: { userId: user.id, date: { startsWith: prefix }, deletedAt: null },
-      data: { money: null, bankDeducted: 0 },
+      data: { money: null, moneyDeducted: 0 },
     });
     res.json({ ok: true });
   } catch (err) {

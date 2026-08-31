@@ -62,12 +62,34 @@ function SpentProgressBar({ spent, budget, colorClass }) {
   );
 }
 
+function SourceToggle({ value, onChange, className = '' }) {
+  return (
+    <div className={`flex gap-1 ${className}`}>
+      {['bank', 'cash'].map((source) => (
+        <button
+          key={source}
+          type="button"
+          onClick={() => onChange(source)}
+          className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wide transition ${
+            (value || 'bank') === source
+              ? 'bg-amber-500 text-slate-950'
+              : 'bg-slate-800 text-game-dim border border-slate-600 hover:text-game-text'
+          }`}
+        >
+          {source === 'bank' ? 'Bank' : 'Cash'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: cat.name, type: cat.type, budgetedAmount: cat.budgetedAmount, spentAmount: cat.spentAmount ?? 0 });
+  const [form, setForm] = useState({ name: cat.name, type: cat.type, budgetedAmount: cat.budgetedAmount, spentAmount: cat.spentAmount ?? 0, paymentSource: cat.paymentSource || 'bank' });
   const [saving, setSaving] = useState(false);
   const [spentEditing, setSpentEditing] = useState(false);
   const [spentInput, setSpentInput] = useState('');
+  const [spentSource, setSpentSource] = useState(cat.paymentSource || 'bank');
 
   const handleSave = async () => {
     setSaving(true);
@@ -80,7 +102,7 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
     const amount = parseFloat(spentInput);
     if (isNaN(amount)) return;
     setSaving(true);
-    await onSave({ ...cat, spentAmount: amount });
+    await onSave({ ...cat, spentAmount: amount, paymentSource: spentSource });
     setSaving(false);
     setSpentEditing(false);
     setSpentInput('');
@@ -114,6 +136,9 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
           className="w-28 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-game-text outline-none focus:border-amber-500"
           placeholder="Budget (₹)"
         />
+        {form.type === 'fixed' && (
+          <SourceToggle value={form.paymentSource} onChange={(source) => setForm((f) => ({ ...f, paymentSource: source }))} />
+        )}
         <button onClick={handleSave} disabled={saving} className="p-1.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
           <Check className="w-4 h-4" />
         </button>
@@ -132,12 +157,17 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
           <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${cat.type === 'fixed' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
             {cat.type === 'fixed' ? 'Fixed' : 'Daily pool'}
           </span>
+          {cat.type === 'fixed' && (
+            <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-700/50 text-game-dim">
+              {(cat.paymentSource || 'bank') === 'bank' ? 'Bank' : 'Cash'}
+            </span>
+          )}
         </div>
         <div className="text-right shrink-0">
           <span className="text-game-gold font-black text-sm">₹{cat.budgetedAmount.toLocaleString()}</span>
         </div>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-          <button onClick={() => { setForm({ name: cat.name, type: cat.type, budgetedAmount: cat.budgetedAmount, spentAmount: cat.spentAmount ?? 0 }); setEditing(true); }} className="p-1.5 rounded text-game-dim hover:text-amber-400 hover:bg-amber-400/10 transition">
+          <button onClick={() => { setForm({ name: cat.name, type: cat.type, budgetedAmount: cat.budgetedAmount, spentAmount: cat.spentAmount ?? 0, paymentSource: cat.paymentSource || 'bank' }); setEditing(true); }} className="p-1.5 rounded text-game-dim hover:text-amber-400 hover:bg-amber-400/10 transition">
             <Edit3 className="w-3.5 h-3.5" />
           </button>
           <button onClick={() => onDelete(cat.id)} className="p-1.5 rounded text-game-dim hover:text-red-400 hover:bg-red-400/10 transition">
@@ -162,6 +192,7 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
                       className="w-24 bg-slate-800 border border-amber-500/50 rounded px-2 py-0.5 text-xs text-game-text outline-none focus:border-amber-500"
                       autoFocus
                     />
+                    <SourceToggle value={spentSource} onChange={setSpentSource} />
                     <button onClick={handleSaveSpent} disabled={saving} className="p-0.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
                       <Check className="w-3 h-3" />
                     </button>
@@ -171,7 +202,7 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { setSpentInput(String(effectiveSpent)); setSpentEditing(true); }}
+                    onClick={() => { setSpentInput(String(effectiveSpent)); setSpentSource(cat.paymentSource || 'bank'); setSpentEditing(true); }}
                     className="text-game-dim hover:text-amber-400 transition flex items-center gap-1"
                     title="Log how much you've spent"
                   >
@@ -196,15 +227,15 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
 
 function AddCategoryRow({ onAdd }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', type: 'daily', budgetedAmount: '' });
+  const [form, setForm] = useState({ name: '', type: 'daily', budgetedAmount: '', paymentSource: 'bank' });
   const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
     if (!form.name.trim()) return;
     setSaving(true);
-    await onAdd({ name: form.name.trim(), type: form.type, budgetedAmount: parseFloat(form.budgetedAmount) || 0 });
+    await onAdd({ name: form.name.trim(), type: form.type, budgetedAmount: parseFloat(form.budgetedAmount) || 0, paymentSource: form.paymentSource });
     setSaving(false);
-    setForm({ name: '', type: 'daily', budgetedAmount: '' });
+    setForm({ name: '', type: 'daily', budgetedAmount: '', paymentSource: 'bank' });
     setOpen(false);
   };
 
@@ -240,6 +271,9 @@ function AddCategoryRow({ onAdd }) {
         className="w-28 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-game-text outline-none focus:border-amber-500"
         placeholder="₹ / month"
       />
+      {form.type === 'fixed' && (
+        <SourceToggle value={form.paymentSource} onChange={(source) => setForm((f) => ({ ...f, paymentSource: source }))} />
+      )}
       <button onClick={handleAdd} disabled={saving || !form.name.trim()} className="p-1.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition disabled:opacity-40">
         <Check className="w-4 h-4" />
       </button>

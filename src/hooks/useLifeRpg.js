@@ -27,6 +27,7 @@ function fromApiEntry(raw) {
     power: toOption(POWER_OPTIONS, raw.powerScore ?? raw.powerLabel),
     screenTime: raw.screenTime ?? '',
     money: raw.money ?? '',
+    moneySource: raw.moneySource || 'bank',
     runWalk: raw.runWalk ?? '',
     steps: raw.steps ?? '',
     bigWin: raw.bigWin || '',
@@ -54,6 +55,7 @@ function toApiPayload(entry) {
     power: entry.power,
     screenTime: entry.screenTime,
     money: entry.money,
+    moneySource: entry.moneySource || 'bank',
     runWalk: entry.runWalk,
     steps: entry.steps,
     bigWin: entry.bigWin,
@@ -78,6 +80,7 @@ function blankEntry(date, config) {
     power: null,
     screenTime: '',
     money: '',
+    moneySource: 'bank',
     runWalk: '',
     steps: '',
     bigWin: '',
@@ -88,6 +91,17 @@ function blankEntry(date, config) {
     categories: Object.fromEntries(
       (config.categories || []).map((c) => [c.id, { hours: '', key: c.key, name: c.name, color: c.color }])
     ),
+  };
+}
+
+// Backend responses carry whichever balances actually changed (Bank/Cash), so a payment
+// source switch is reflected live instead of needing a reload.
+function withUpdatedBalances(budgetSetting, saved) {
+  if (saved?.bankBalance === undefined && saved?.cashBalance === undefined) return budgetSetting;
+  return {
+    ...budgetSetting,
+    ...(saved.bankBalance !== undefined ? { bankBalance: saved.bankBalance } : {}),
+    ...(saved.cashBalance !== undefined ? { cashBalance: saved.cashBalance } : {}),
   };
 }
 
@@ -164,9 +178,7 @@ export function useLifeRpg() {
         }
         return [...prev, mapped];
       });
-      if (saved.bankBalance !== undefined) {
-        setConfig((c) => ({ ...c, budgetSetting: { ...c.budgetSetting, bankBalance: saved.bankBalance } }));
-      }
+      setConfig((c) => ({ ...c, budgetSetting: withUpdatedBalances(c.budgetSetting, saved) }));
     } catch (err) {
       console.error('Save failed', err);
       setError(err.message);
@@ -230,9 +242,7 @@ export function useLifeRpg() {
   const remove = useCallback(async (id) => {
     const result = await api.deleteEntry(id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
-    if (result?.bankBalance !== undefined) {
-      setConfig((c) => ({ ...c, budgetSetting: { ...c.budgetSetting, bankBalance: result.bankBalance } }));
-    }
+    setConfig((c) => ({ ...c, budgetSetting: withUpdatedBalances(c.budgetSetting, result) }));
   }, []);
 
   const getOrCreate = useCallback(
@@ -337,7 +347,7 @@ export function useLifeRpg() {
       const budgetCategories = existing
         ? c.budgetCategories.map((x) => (x.id === saved.id ? saved : x))
         : [...c.budgetCategories, saved];
-      const budgetSetting = saved.bankBalance !== undefined ? { ...c.budgetSetting, bankBalance: saved.bankBalance } : c.budgetSetting;
+      const budgetSetting = withUpdatedBalances(c.budgetSetting, saved);
       return { ...c, budgetCategories, budgetSetting };
     });
     return saved;
@@ -355,7 +365,7 @@ export function useLifeRpg() {
       const creditCards = existing
         ? c.creditCards.map((x) => (x.id === saved.id ? saved : x))
         : [...c.creditCards, saved];
-      const budgetSetting = saved.bankBalance !== undefined ? { ...c.budgetSetting, bankBalance: saved.bankBalance } : c.budgetSetting;
+      const budgetSetting = withUpdatedBalances(c.budgetSetting, saved);
       return { ...c, creditCards, budgetSetting };
     });
     return saved;
