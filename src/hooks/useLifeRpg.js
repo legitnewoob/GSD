@@ -352,8 +352,11 @@ export function useLifeRpg() {
     const saved = await api.saveCreditCard(card);
     setConfig((c) => {
       const existing = c.creditCards.find((x) => x.id === saved.id);
-      if (existing) return { ...c, creditCards: c.creditCards.map((x) => (x.id === saved.id ? saved : x)) };
-      return { ...c, creditCards: [...c.creditCards, saved] };
+      const creditCards = existing
+        ? c.creditCards.map((x) => (x.id === saved.id ? saved : x))
+        : [...c.creditCards, saved];
+      const budgetSetting = saved.bankBalance !== undefined ? { ...c.budgetSetting, bankBalance: saved.bankBalance } : c.budgetSetting;
+      return { ...c, creditCards, budgetSetting };
     });
     return saved;
   }, []);
