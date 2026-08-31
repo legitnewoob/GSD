@@ -1,5 +1,8 @@
+import { useState, useEffect } from 'react';
 import { parseISO, startOfWeek, format } from 'date-fns';
+import { History, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { specialCategoryKeys } from '../utils/constants';
+import { api } from '../lib/api';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
 const inputBase =
@@ -8,6 +11,130 @@ const inputBase =
 function weekLabel(date) {
   const start = startOfWeek(date, { weekStartsOn: 1 });
   return `Week of ${format(start, 'dd MMM')}`;
+}
+
+function MonthHistoryPanel() {
+  const [snapshots, setSnapshots] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [capturing, setCapturing] = useState(false);
+
+  const load = async () => {
+    const data = await api.getBudgetSnapshots();
+    setSnapshots(data);
+    setSelectedMonth((prev) => prev || data[0]?.month || null);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleCapture = async () => {
+    setCapturing(true);
+    try {
+      await api.captureBudgetSnapshot();
+      await load();
+    } finally {
+      setCapturing(false);
+    }
+  };
+
+  const snapshot = snapshots?.find((s) => s.month === selectedMonth);
+
+  return (
+    <div className={panelBase}>
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <History className="w-5 h-5 text-amber-400" />
+          <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Month History</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {snapshots && snapshots.length > 0 && (
+            <select
+              value={selectedMonth || ''}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-game-text outline-none focus:border-amber-500"
+            >
+              {snapshots.map((s) => (
+                <option key={s.month} value={s.month}>{format(parseISO(`${s.month}-01`), 'MMMM yyyy')}</option>
+              ))}
+            </select>
+          )}
+          <button onClick={handleCapture} disabled={capturing} title="Save a snapshot of the current month right now" className="flex items-center gap-1 text-xs text-game-dim hover:text-amber-400 border border-slate-700 hover:border-amber-500/50 px-2.5 py-1.5 rounded-lg transition disabled:opacity-40">
+            <RefreshCw className={`w-3.5 h-3.5 ${capturing ? 'animate-spin' : ''}`} /> Snapshot now
+          </button>
+        </div>
+      </div>
+      <p className="text-xs text-game-dim mb-4">Budget, spend, and credit card state as of month-end — captured automatically when a new month starts.</p>
+
+      {snapshots === null && <div className="text-game-dim text-sm">Loading…</div>}
+      {snapshots?.length === 0 && (
+        <p className="text-game-dim text-sm">No months recorded yet — this fills in once a month closes out, or hit "Snapshot now" to capture the current month.</p>
+      )}
+
+      {snapshot && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-700">
+              <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Income</div>
+              <div className="text-lg font-black text-emerald-400">₹{(snapshot.monthlyIncome || 0).toLocaleString()}</div>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-700">
+              <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Fixed budget vs spent</div>
+              <div className="text-lg font-black text-blue-400">
+                ₹{snapshot.totalFixedSpent.toLocaleString()} <span className="text-xs text-game-dim font-normal">/ ₹{snapshot.totalFixed.toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-700">
+              <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Daily pool budget vs spent</div>
+              <div className="text-lg font-black text-amber-400">
+                ₹{snapshot.totalDailySpent.toLocaleString()} <span className="text-xs text-game-dim font-normal">/ ₹{snapshot.totalDailyPool.toLocaleString()}</span>
+              </div>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-700">
+              <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Balances</div>
+              <div className="text-sm font-black text-game-text">Cash ₹{(snapshot.cashBalance || 0).toLocaleString()}</div>
+              <div className="text-sm font-black text-game-text">Bank ₹{(snapshot.bankBalance || 0).toLocaleString()}</div>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-game-dim uppercase tracking-wide mb-2">Category breakdown</div>
+            <div className="space-y-1">
+              {(snapshot.categories || []).map((c, i) => (
+                <div key={i} className="flex items-center justify-between bg-slate-900/40 rounded-lg px-3 py-2 text-sm">
+                  <span className="text-game-text font-bold">{c.name}</span>
+                  <span className="text-game-dim">
+                    {c.type === 'fixed'
+                      ? `₹${(c.spentAmount || 0).toLocaleString()} / ₹${c.budgetedAmount.toLocaleString()}`
+                      : `₹${c.budgetedAmount.toLocaleString()} pool`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {snapshot.creditCards && snapshot.creditCards.length > 0 && (
+            <div>
+              <div className="text-xs text-game-dim uppercase tracking-wide mb-2">Credit cards (state as of this month)</div>
+              <div className="space-y-1">
+                {snapshot.creditCards.map((c, i) => (
+                  <div key={i} className="flex items-center justify-between bg-slate-900/40 rounded-lg px-3 py-2 text-sm">
+                    <span className="flex items-center gap-2 text-game-text font-bold">
+                      {c.isPaid ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> : <XCircle className="w-3.5 h-3.5 text-red-400" />}
+                      {c.name}
+                    </span>
+                    <span className={c.isPaid ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+                      {c.isPaid ? 'Cleared' : `₹${(c.currentBalance || 0).toLocaleString()} due`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function getSleepHours(entry) {
@@ -60,9 +187,12 @@ export function WeeklyReview({ config, entries }) {
 
   if (!data.length) {
     return (
-      <div className="max-w-5xl mx-auto p-6">
-        <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">ADVENTURE LOG</h1>
-        <p className="text-game-dim mt-2">Return after a few quests to review your weekly campaign.</p>
+      <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">ADVENTURE LOG</h1>
+          <p className="text-game-dim mt-2">Return after a few quests to review your weekly campaign.</p>
+        </div>
+        <MonthHistoryPanel />
       </div>
     );
   }
@@ -73,6 +203,8 @@ export function WeeklyReview({ config, entries }) {
         <h1 className="text-2xl font-black text-game-gold tracking-wide text-glow">ADVENTURE LOG</h1>
         <p className="text-game-dim text-sm">Weekly campaign summaries and reflection scrolls.</p>
       </div>
+
+      <MonthHistoryPanel />
 
       <div className={`${panelBase} overflow-hidden`}>
         <div className="overflow-x-auto">

@@ -23,6 +23,13 @@ export async function captureSnapshot(prisma, bs, closingMonth) {
   });
   const totalDailySpent = entries.reduce((s, e) => s + (parseFloat(e.money) || 0), 0);
 
+  // Credit cards aren't part of the monthly budget allocation and never reset — this just
+  // records each card's paid/balance state as of the snapshot moment, for the monthly log.
+  const cards = await prisma.creditCard.findMany({ where: { budgetSettingId: bs.id, isActive: true } });
+  const creditCards = cards.map((c) => ({ name: c.name, currentBalance: c.currentBalance, creditLimit: c.creditLimit, isPaid: c.isPaid }));
+
+  const categoriesJson = categories.map((c) => ({ name: c.name, type: c.type, budgetedAmount: c.budgetedAmount, spentAmount: c.type === 'fixed' ? c.spentAmount : undefined }));
+
   await prisma.budgetSnapshot.upsert({
     where: { userId_month: { userId: bs.userId, month: closingMonth } },
     create: {
@@ -35,7 +42,8 @@ export async function captureSnapshot(prisma, bs, closingMonth) {
       totalFixedSpent,
       totalDailyPool,
       totalDailySpent,
-      categories: categories.map((c) => ({ name: c.name, type: c.type, budgetedAmount: c.budgetedAmount, spentAmount: c.type === 'fixed' ? c.spentAmount : undefined })),
+      categories: categoriesJson,
+      creditCards,
     },
     update: {
       monthlyIncome: bs.monthlyIncome,
@@ -45,7 +53,8 @@ export async function captureSnapshot(prisma, bs, closingMonth) {
       totalFixedSpent,
       totalDailyPool,
       totalDailySpent,
-      categories: categories.map((c) => ({ name: c.name, type: c.type, budgetedAmount: c.budgetedAmount, spentAmount: c.type === 'fixed' ? c.spentAmount : undefined })),
+      categories: categoriesJson,
+      creditCards,
     },
   });
   console.log(`[budget-scheduler] Snapshot captured for ${closingMonth} (budget ${bs.id})`);

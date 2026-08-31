@@ -150,6 +150,7 @@ model BudgetSnapshot {
   totalDailyPool    Float    @default(0) @map("total_daily_pool")
   totalDailySpent   Float    @default(0) @map("total_daily_spent")
   categories        Json     // [{ name, type, budgetedAmount, spentAmount }]
+  creditCards       Json?    // [{ name, currentBalance, creditLimit, isPaid }] — state as of snapshot time
   createdAt         DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
