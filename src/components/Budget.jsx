@@ -604,7 +604,13 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const totalFixed = fixedCategories.reduce((s, c) => s + c.budgetedAmount, 0);
   const totalFixedSpent = fixedCategories.reduce((s, c) => s + (c.spentAmount || 0), 0);
   const totalIncome = parseFloat(income) || 0;
-  const totalAllocated = totalFixed + monthlyDailyPool;
+  // Paid fixed spend and this month's daily spend have already been drawn out of
+  // Cash/Bank as they were logged (bank-sync), so only what's still UNPAID needs to be
+  // set aside here — subtracting the full budgeted amount would double-count the part
+  // that's already left the balance.
+  const unpaidFixed = Math.max(0, totalFixed - totalFixedSpent);
+  const unspentDailyPool = Math.max(0, monthlyDailyPool - totalSpentThisMonth);
+  const totalAllocated = unpaidFixed + unspentDailyPool;
   const totalCcDebt = creditCards.filter((c) => !c.isPaid).reduce((s, c) => s + (c.currentBalance || 0), 0);
   const totalRewardPoints = creditCards.reduce((s, c) => s + (c.rewardPoints || 0), 0);
   const ccDebtDueThisMonth = creditCards
@@ -705,9 +711,9 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
         <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/40 rounded-xl p-4">
           <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
           <div>
-            <div className="font-black text-amber-400 text-sm">Allocations Exceed Available Balance</div>
+            <div className="font-black text-amber-400 text-sm">Unpaid Allocations Exceed Available Balance</div>
             <div className="text-sm text-game-dim mt-0.5">
-              You've allocated <span className="text-amber-400 font-bold">₹{totalAllocated.toLocaleString()}</span> but only have{' '}
+              You still need to set aside <span className="text-amber-400 font-bold">₹{totalAllocated.toLocaleString()}</span> for unpaid budget items but only have{' '}
               <span className="text-game-text font-bold">₹{totalAvailable.toLocaleString()}</span> in cash + bank.{' '}
               Over by <span className="text-red-400 font-bold">₹{(totalAllocated - totalAvailable).toLocaleString()}</span>
             </div>
@@ -898,22 +904,22 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
                 </div>
                 <span className="text-xs font-bold text-game-gold w-24 text-right">₹{totalAvailable.toLocaleString()}</span>
               </div>
-              {totalFixed > 0 && (
+              {unpaidFixed > 0 && (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-blue-400 w-28">Fixed ({fixedCategories.length})</span>
+                  <span className="text-xs text-blue-400 w-28">Fixed unpaid ({fixedCategories.length})</span>
                   <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (totalFixed / totalAvailable) * 100)}%` }} />
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(100, (unpaidFixed / totalAvailable) * 100)}%` }} />
                   </div>
-                  <span className="text-xs font-bold text-blue-400 w-24 text-right">−₹{totalFixed.toLocaleString()}</span>
+                  <span className="text-xs font-bold text-blue-400 w-24 text-right">−₹{unpaidFixed.toLocaleString()}</span>
                 </div>
               )}
-              {monthlyDailyPool > 0 && (
+              {unspentDailyPool > 0 && (
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-emerald-400 w-28">Daily pool</span>
+                  <span className="text-xs text-emerald-400 w-28">Daily pool left</span>
                   <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (monthlyDailyPool / totalAvailable) * 100)}%` }} />
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (unspentDailyPool / totalAvailable) * 100)}%` }} />
                   </div>
-                  <span className="text-xs font-bold text-emerald-400 w-24 text-right">−₹{monthlyDailyPool.toLocaleString()}</span>
+                  <span className="text-xs font-bold text-emerald-400 w-24 text-right">−₹{unspentDailyPool.toLocaleString()}</span>
                 </div>
               )}
               <div className="flex items-center gap-3 pt-1 border-t border-slate-700">
