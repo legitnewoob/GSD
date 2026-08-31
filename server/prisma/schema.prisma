@@ -126,6 +126,7 @@ model BudgetSetting {
   bankBalance       Float?   @map("bank_balance")
   salaryDay         Int?     @map("salary_day")
   lastSalaryCredit  String?  @map("last_salary_credit")
+  lastFixedResetMonth String? @map("last_fixed_reset_month")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

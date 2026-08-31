@@ -10,6 +10,7 @@ import { getVapidPublicKey, sendWebPush } from './webpush.js';
 import { getPlatformStats } from './cpStats.js';
 import { syncGoogleFit } from './googleFitSync.js';
 import { startGoogleFitScheduler } from './googleFitScheduler.js';
+import { startBudgetResetScheduler } from './budgetScheduler.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -991,4 +992,5 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   startReminderScheduler(prisma);
   startGoogleFitScheduler(prisma);
+  startBudgetResetScheduler(prisma);
 });
