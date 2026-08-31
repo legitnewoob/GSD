@@ -6,6 +6,7 @@ export const defaultHabits = [
   { key: 'brush_twice',           label: 'Brush Twice',                group: 'Morning',       xpValue: 2 },
   // CP & DSA
   { key: 'dsa',                   label: 'DSA',                        group: 'CP & DSA',      xpValue: 12 },
+  { key: 'cp_learning',           label: 'CP Learning',                group: 'CP & DSA',      xpValue: 12 },
   { key: 'problem_solving',       label: 'Problem Solving',            group: 'CP & DSA',      xpValue: 12 },
   { key: 'codeforces_cp',         label: 'Codeforces / CP',            group: 'CP & DSA',      xpValue: 12 },
   { key: 'codeforces_contest',    label: 'Codeforces Contest',         group: 'CP & DSA',      xpValue: 25 },
