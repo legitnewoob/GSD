@@ -24,6 +24,7 @@ model User {
   pushSubscriptions PushSubscription[]
   learningTopics LearningTopic[]
   codingProfiles CodingProfile[]
+  budgetSnapshots BudgetSnapshot[]
 
   @@map("users")
 }
@@ -135,6 +136,26 @@ model BudgetSetting {
   creditCards      CreditCard[]
 
   @@map("budget_settings")
+}
+
+model BudgetSnapshot {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  month             String   // "YYYY-MM" — the month this snapshot closes out
+  monthlyIncome     Float?   @map("monthly_income")
+  cashBalance       Float?   @map("cash_balance")
+  bankBalance       Float?   @map("bank_balance")
+  totalFixed        Float    @default(0) @map("total_fixed")
+  totalFixedSpent   Float    @default(0) @map("total_fixed_spent")
+  totalDailyPool    Float    @default(0) @map("total_daily_pool")
+  totalDailySpent   Float    @default(0) @map("total_daily_spent")
+  categories        Json     // [{ name, type, budgetedAmount, spentAmount }]
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("budget_snapshots")
 }
 
 model BudgetCategory {

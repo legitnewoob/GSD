@@ -10,7 +10,7 @@ import { getVapidPublicKey, sendWebPush } from './webpush.js';
 import { getPlatformStats } from './cpStats.js';
 import { syncGoogleFit } from './googleFitSync.js';
 import { startGoogleFitScheduler } from './googleFitScheduler.js';
-import { startBudgetResetScheduler } from './budgetScheduler.js';
+import { startBudgetResetScheduler, captureSnapshot } from './budgetScheduler.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -569,6 +569,36 @@ app.delete('/api/budget/spending', async (req, res) => {
       data: { money: null },
     });
     res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/budget/snapshots', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const snapshots = await prisma.budgetSnapshot.findMany({
+      where: { userId: user.id },
+      orderBy: { month: 'desc' },
+    });
+    res.json(snapshots);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/budget/snapshots/capture', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { month } = req.body; // e.g. "2026-08"; defaults to current month
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+    let budgetSetting = await prisma.budgetSetting.findUnique({ where: { userId: user.id } });
+    if (!budgetSetting) return res.status(400).json({ error: 'No budget settings found' });
+    await captureSnapshot(prisma, budgetSetting, targetMonth);
+    const snapshot = await prisma.budgetSnapshot.findUnique({ where: { userId_month: { userId: user.id, month: targetMonth } } });
+    res.json(snapshot);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

@@ -64,6 +64,8 @@ export const api = {
   saveCreditCard: (payload) => request('/api/budget/credit-cards', { method: 'POST', body: JSON.stringify(payload) }),
   deleteCreditCard: (id) => request(`/api/budget/credit-cards/${id}`, { method: 'DELETE' }),
   clearSpending: (month) => request(`/api/budget/spending${month ? `?month=${month}` : ''}`, { method: 'DELETE' }),
+  getBudgetSnapshots: () => request('/api/budget/snapshots'),
+  captureBudgetSnapshot: (month) => request('/api/budget/snapshots/capture', { method: 'POST', body: JSON.stringify({ month }) }),
   getTodos: () => request('/api/todos'),
   addTodo: (payload) => request('/api/todos', { method: 'POST', body: JSON.stringify(payload) }),
   updateTodo: (id, payload) => request(`/api/todos/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
