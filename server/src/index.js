@@ -11,6 +11,7 @@ import { getPlatformStats } from './cpStats.js';
 import { syncGoogleFit } from './googleFitSync.js';
 import { startGoogleFitScheduler } from './googleFitScheduler.js';
 import { startBudgetResetScheduler, captureSnapshot } from './budgetScheduler.js';
+import { startCpAutoCheckScheduler } from './cpAutoCheckScheduler.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -1120,4 +1121,5 @@ app.listen(PORT, () => {
   startReminderScheduler(prisma);
   startGoogleFitScheduler(prisma);
   startBudgetResetScheduler(prisma);
+  startCpAutoCheckScheduler(prisma);
 });
