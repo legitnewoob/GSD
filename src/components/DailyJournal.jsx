@@ -532,7 +532,7 @@ export function DailyJournal({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { key: 'screenTime', label: 'Screen time (hrs)', icon: Moon },
-          { key: 'money', label: 'Gold spent (₹)', icon: Coins, placeholder: todayAllowance > 0 ? `Budget: ₹${todayAllowance}` : undefined },
+          { key: 'money', label: 'Gold spent (₹)', icon: Coins, placeholder: todayAllowance >= 0 ? `Budget: ₹${todayAllowance}` : `Over by ₹${Math.abs(todayAllowance)}` },
           { key: 'runWalk', label: 'Run / walk (km)', icon: Footprints },
           { key: 'steps', label: 'Steps', icon: Zap },
         ].map((f) => {
@@ -553,12 +553,20 @@ export function DailyJournal({
                 className={inputBase}
                 placeholder={f.placeholder || ''}
               />
-              {f.key === 'money' && todayAllowance > 0 && (
+              {f.key === 'money' && (
                 <div className="mt-1.5 text-xs font-bold">
-                  <span className={(parseFloat(draft.money) || 0) > todayAllowance ? 'text-red-400' : 'text-emerald-400'}>
-                    ₹{draft.money || 0}
-                  </span>
-                  <span className="text-game-dim"> / ₹{todayAllowance} today</span>
+                  {(() => {
+                    const spent = parseFloat(draft.money) || 0;
+                    const diff = todayAllowance - spent;
+                    const over = diff < 0;
+                    return (
+                      <>
+                        <span className={over ? 'text-red-400' : 'text-emerald-400'}>₹{spent}</span>
+                        <span className="text-game-dim"> / ₹{todayAllowance} today</span>
+                        {over && <span className="text-red-400"> · ₹{Math.abs(diff)} over</span>}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
