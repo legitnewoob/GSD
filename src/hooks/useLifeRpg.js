@@ -117,27 +117,10 @@ export function useLifeRpg() {
     let cancelled = false;
     async function init() {
       try {
+        // Salary auto-crediting runs server-side hourly (last working day of the month,
+        // self-healing any missed month) — see server/src/budgetScheduler.js.
         const [cfg, rawEntries] = await Promise.all([api.getConfig(), api.getEntries()]);
         if (cancelled) return;
-
-        // Auto-credit salary when salary day arrives and not yet credited this month
-        const bs = cfg.budgetSetting;
-        if (bs?.salaryDay && bs?.monthlyIncome) {
-          const today = new Date();
-          const thisMonth = format(today, 'yyyy-MM');
-          // Find effective salary day — shift to previous Friday if it falls on weekend
-          const salaryDate = new Date(today.getFullYear(), today.getMonth(), bs.salaryDay);
-          const dow = salaryDate.getDay();
-          if (dow === 0) salaryDate.setDate(salaryDate.getDate() - 2); // Sunday → Friday
-          else if (dow === 6) salaryDate.setDate(salaryDate.getDate() - 1); // Saturday → Friday
-          const effectiveSalaryDay = salaryDate.getDate();
-
-          if (today.getDate() >= effectiveSalaryDay && bs.lastSalaryCredit !== thisMonth) {
-            const newBank = (bs.bankBalance || 0) + bs.monthlyIncome;
-            await api.saveBudget({ bankBalance: newBank, lastSalaryCredit: thisMonth });
-            cfg.budgetSetting = { ...bs, bankBalance: newBank, lastSalaryCredit: thisMonth };
-          }
-        }
 
         setConfig({
           habits: cfg.habits,

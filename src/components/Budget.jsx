@@ -574,7 +574,6 @@ function AddCreditCardButton({ onAdd }) {
 
 export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, onDeleteBudgetCategory, onSaveCreditCard, onDeleteCreditCard }) {
   const [income, setIncome] = useState(config.budgetSetting?.monthlyIncome || '');
-  const [salaryDay, setSalaryDay] = useState(config.budgetSetting?.salaryDay || '');
   const [incomeEditing, setIncomeEditing] = useState(false);
   const [cashBalance, setCashBalance] = useState(config.budgetSetting?.cashBalance ?? '');
   const [bankBalance, setBankBalance] = useState(config.budgetSetting?.bankBalance ?? '');
@@ -642,7 +641,6 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const handleSaveIncome = async () => {
     await onSaveBudget({
       monthlyIncome: income === '' ? null : parseFloat(income),
-      salaryDay: salaryDay === '' ? null : parseInt(salaryDay, 10),
     });
     setIncomeEditing(false);
   };
@@ -754,7 +752,7 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-black uppercase tracking-wide text-game-text">Monthly Salary</h2>
         </div>
-        <p className="text-xs text-game-dim mb-4">Credited at month-end — funds next month's budget. Not used for current spending calculations.</p>
+        <p className="text-xs text-game-dim mb-4">Auto-credited to Bank on the last working day of each month — funds next month's budget.</p>
         {incomeEditing ? (
           <div className="space-y-3 max-w-sm">
             <div>
@@ -762,14 +760,9 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
               <input type="number" value={income} onChange={(e) => setIncome(e.target.value)}
                 className={inputBase} placeholder="e.g. 80000" autoFocus onKeyDown={(e) => e.key === 'Enter' && handleSaveIncome()} />
             </div>
-            <div>
-              <label className="text-xs text-game-dim uppercase tracking-wide mb-1 block">Salary day of month (auto-adjusts for weekends)</label>
-              <input type="number" min="1" max="31" value={salaryDay} onChange={(e) => setSalaryDay(e.target.value)}
-                className={inputBase} placeholder="e.g. 25" />
-            </div>
             <div className="flex gap-2">
               <button onClick={handleSaveIncome} className={btnPrimary}>Save</button>
-              <button onClick={() => { setIncome(config.budgetSetting?.monthlyIncome || ''); setSalaryDay(config.budgetSetting?.salaryDay || ''); setIncomeEditing(false); }} className={btnGhost}>Cancel</button>
+              <button onClick={() => { setIncome(config.budgetSetting?.monthlyIncome || ''); setIncomeEditing(false); }} className={btnGhost}>Cancel</button>
             </div>
           </div>
         ) : (
@@ -778,10 +771,10 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
               <div className="text-3xl font-black text-game-gold text-glow">
                 {totalIncome ? `₹${totalIncome.toLocaleString()}` : <span className="text-game-dim text-xl">Not set</span>}
               </div>
-              {config.budgetSetting?.salaryDay && (
+              {totalIncome > 0 && (
                 <div className="text-xs text-game-dim mt-1">
-                  Auto-credited on day <span className="text-amber-400 font-bold">{config.budgetSetting.salaryDay}</span> each month
-                  {config.budgetSetting.lastSalaryCredit && (
+                  Auto-credited on the <span className="text-amber-400 font-bold">last working day</span> of each month
+                  {config.budgetSetting?.lastSalaryCredit && (
                     <span className="ml-2 text-emerald-400 font-bold">· Last credited {config.budgetSetting.lastSalaryCredit}</span>
                   )}
                 </div>
