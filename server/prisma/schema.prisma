@@ -75,12 +75,14 @@ model Entry {
   powerScore    Int?    @map("power_score")
   screenTime    Float?  @map("screen_time")
   money         Float?
+  bankDeducted  Float?  @default(0) @map("bank_deducted") // how much of `money` has already been drawn from bankBalance
   runWalk       Float?  @map("run_walk")
   steps         Int?
   bigWin        String? @map("big_win")
   drain         String?
   tomorrow      String?
   notes         String?
+  deletedAt     DateTime? @map("deleted_at") // soft delete — "deleting" an entry just hides it, never destroys it
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

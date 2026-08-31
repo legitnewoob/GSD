@@ -91,6 +91,9 @@ export async function syncGoogleFit(prisma, userId, days = 7) {
   for (const dateStr of allDates) {
     const steps = stepsMap[dateStr] > 0 ? stepsMap[dateStr] : null;
     const distanceKm = distMap[dateStr] > 0 ? distMap[dateStr] : null;
+    // Respect a soft-deleted day — don't silently resurrect it via a background sync.
+    const existing = await prisma.entry.findUnique({ where: { userId_date: { userId, date: dateStr } } });
+    if (existing?.deletedAt) continue;
     await prisma.entry.upsert({
       where: { userId_date: { userId, date: dateStr } },
       create: { userId, date: dateStr, steps, runWalk: distanceKm },

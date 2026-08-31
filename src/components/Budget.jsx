@@ -624,7 +624,7 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
             </button>
           )}
         </div>
-        <p className="text-xs text-game-dim mb-4">Manual snapshot — update whenever you check your balance. Not auto-deducted as you spend.</p>
+        <p className="text-xs text-game-dim mb-4">Set your real balance here once — Bank auto-adjusts as you log daily spend, fixed spend, and CC payments from then on.</p>
 
         {balanceEditing ? (
           <div className="space-y-3">
