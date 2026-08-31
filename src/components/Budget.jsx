@@ -976,6 +976,13 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
           </div>
           <div className="text-right">
             {totalCcDebt > 0 && <div className="text-xl font-black text-red-400">₹{totalCcDebt.toLocaleString()} due</div>}
+            {hasBalanceSet && ccDebtDueThisMonth > 0 && (
+              <div className={`text-xs font-bold ${ccExceedsBalance ? 'text-red-400' : 'text-emerald-400'}`}>
+                {ccExceedsBalance
+                  ? `Short by ₹${(ccDebtDueThisMonth - totalAvailable).toLocaleString()} this month`
+                  : `₹${(totalAvailable - ccDebtDueThisMonth).toLocaleString()} gap this month`}
+              </div>
+            )}
             {totalRewardPoints > 0 && <div className="text-sm font-bold text-amber-400">{totalRewardPoints.toLocaleString()} pts total</div>}
           </div>
         </div>
