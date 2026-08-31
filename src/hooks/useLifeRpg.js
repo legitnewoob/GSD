@@ -164,6 +164,9 @@ export function useLifeRpg() {
         }
         return [...prev, mapped];
       });
+      if (saved.bankBalance !== undefined) {
+        setConfig((c) => ({ ...c, budgetSetting: { ...c.budgetSetting, bankBalance: saved.bankBalance } }));
+      }
     } catch (err) {
       console.error('Save failed', err);
       setError(err.message);
@@ -225,8 +228,11 @@ export function useLifeRpg() {
   );
 
   const remove = useCallback(async (id) => {
-    await api.deleteEntry(id);
+    const result = await api.deleteEntry(id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
+    if (result?.bankBalance !== undefined) {
+      setConfig((c) => ({ ...c, budgetSetting: { ...c.budgetSetting, bankBalance: result.bankBalance } }));
+    }
   }, []);
 
   const getOrCreate = useCallback(
@@ -328,8 +334,11 @@ export function useLifeRpg() {
     const saved = await api.saveBudgetCategory(category);
     setConfig((c) => {
       const existing = c.budgetCategories.find((x) => x.id === saved.id);
-      if (existing) return { ...c, budgetCategories: c.budgetCategories.map((x) => (x.id === saved.id ? saved : x)) };
-      return { ...c, budgetCategories: [...c.budgetCategories, saved] };
+      const budgetCategories = existing
+        ? c.budgetCategories.map((x) => (x.id === saved.id ? saved : x))
+        : [...c.budgetCategories, saved];
+      const budgetSetting = saved.bankBalance !== undefined ? { ...c.budgetSetting, bankBalance: saved.bankBalance } : c.budgetSetting;
+      return { ...c, budgetCategories, budgetSetting };
     });
     return saved;
   }, []);

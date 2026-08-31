@@ -242,13 +242,14 @@ async function getOrCreateUser(userId) {
 // Draws `delta` (positive = spend, negative = refund) from the user's Bank balance.
 // Keeps "Money I Have" in sync with logged spend instead of it being a pure manual snapshot.
 async function adjustBankBalance(userId, delta) {
-  if (!delta) return;
+  if (!delta) return undefined;
   const bs = await prisma.budgetSetting.findUnique({ where: { userId } });
-  if (!bs) return;
-  await prisma.budgetSetting.update({
+  if (!bs) return undefined;
+  const updated = await prisma.budgetSetting.update({
     where: { userId },
     data: { bankBalance: (bs.bankBalance || 0) - delta },
   });
+  return updated.bankBalance;
 }
 
 app.use('/api', (req, res, next) => {
@@ -355,7 +356,7 @@ app.post('/api/entries', async (req, res) => {
     });
 
     const moneyDelta = newMoney - previousBankDeducted;
-    if (moneyDelta) await adjustBankBalance(user.id, moneyDelta);
+    const newBankBalance = moneyDelta ? await adjustBankBalance(user.id, moneyDelta) : undefined;
 
     if (payload.habits) {
       await prisma.entryHabit.deleteMany({ where: { entryId: entry.id } });
@@ -377,7 +378,7 @@ app.post('/api/entries', async (req, res) => {
       where: { id: entry.id },
       include: { habits: { include: { habit: true } }, categories: { include: { category: true } } },
     });
-    res.json(updated);
+    res.json({ ...updated, bankBalance: newBankBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -387,13 +388,13 @@ app.post('/api/entries', async (req, res) => {
 app.delete('/api/entries/:id', async (req, res) => {
   try {
     const entry = await prisma.entry.findUnique({ where: { id: req.params.id } });
-    if (entry?.bankDeducted) await adjustBankBalance(entry.userId, -entry.bankDeducted);
+    const newBankBalance = entry?.bankDeducted ? await adjustBankBalance(entry.userId, -entry.bankDeducted) : undefined;
     // Soft delete — never destroy journal data. Hidden from the app, but recoverable
     // (clear deletedAt directly in the DB) if a deletion was accidental. bankDeducted is
     // zeroed since it's already been refunded above, so bulk operations (Clear this month)
     // can't double-refund it later.
     await prisma.entry.update({ where: { id: req.params.id }, data: { deletedAt: new Date(), bankDeducted: 0 } });
-    res.json({ ok: true });
+    res.json({ ok: true, bankBalance: newBankBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -542,13 +543,14 @@ app.post('/api/budget/categories', async (req, res) => {
     // Fixed categories' spentAmount is a direct "have I paid this" tracker (unlike daily
     // categories, whose spend is derived from Entry.money and already synced there) — draw
     // the delta from Bank so it doesn't need a separate manual balance update.
+    let newBankBalance;
     if (resolvedType === 'fixed' && spentAmount !== undefined) {
       const previousSpent = existing?.spentAmount || 0;
       const delta = spentAmount - previousSpent;
-      if (delta) await adjustBankBalance(user.id, delta);
+      if (delta) newBankBalance = await adjustBankBalance(user.id, delta);
     }
 
-    res.json(category);
+    res.json({ ...category, bankBalance: newBankBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
