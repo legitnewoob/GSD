@@ -697,7 +697,7 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
                   Gap left after paying: <span className="text-emerald-400 font-bold">₹{(totalAvailable - ccDebtDueThisMonth).toLocaleString()}</span>
                 </>
               ) : (
-                <>No credit card debt due this month.</>
+                <>No credit card debt due this month — <span className="text-emerald-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available to spend.</>
               )}
             </div>
           </div>
