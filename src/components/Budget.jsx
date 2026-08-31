@@ -7,7 +7,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts';
 import {
-  Plus, Trash2, Edit3, Check, X, CreditCard, ChevronDown, ChevronUp, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays,
+  Plus, Trash2, Edit3, Check, X, CreditCard, ChevronDown, ChevronUp, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays, CheckCircle2,
 } from 'lucide-react';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
@@ -644,6 +644,25 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
               You owe <span className="text-red-400 font-bold">₹{ccDebtDueThisMonth.toLocaleString()}</span> on credit cards due this month but only have{' '}
               <span className="text-amber-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available.{' '}
               Shortfall: <span className="text-red-400 font-bold">₹{(ccDebtDueThisMonth - totalAvailable).toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+      )}
+      {!ccExceedsBalance && hasBalanceSet && (
+        <div className="flex items-start gap-3 bg-emerald-500/10 border border-emerald-500/40 rounded-xl p-4">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+          <div>
+            <div className="font-black text-emerald-400 text-sm">CC Debt Covered</div>
+            <div className="text-sm text-game-dim mt-0.5">
+              {ccDebtDueThisMonth > 0 ? (
+                <>
+                  You owe <span className="text-emerald-400 font-bold">₹{ccDebtDueThisMonth.toLocaleString()}</span> on credit cards due this month and have{' '}
+                  <span className="text-amber-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available.{' '}
+                  Gap left after paying: <span className="text-emerald-400 font-bold">₹{(totalAvailable - ccDebtDueThisMonth).toLocaleString()}</span>
+                </>
+              ) : (
+                <>No credit card debt due this month.</>
+              )}
             </div>
           </div>
         </div>
