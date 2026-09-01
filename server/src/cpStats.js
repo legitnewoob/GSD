@@ -32,6 +32,7 @@ async function fetchCodeforcesStats(handle) {
     solvedCount: solved.size,
     lastSolvedDate: lastSolvedSeconds ? toDateStr(lastSolvedSeconds) : null,
     heatmap,
+    solvedSet: solved, // Set of "{contestId}{index}" — used to live-check upsolve bucket status
   };
 }
 
@@ -92,6 +93,20 @@ async function fetchAtCoderStats(username) {
     lastSolvedDate: lastSolvedSeconds ? toDateStr(lastSolvedSeconds) : null,
     heatmap,
   };
+}
+
+let problemsetCache = null; // Map<"{contestId}{index}", name>, refreshed at most once per TTL
+let problemsetFetchedAt = 0;
+
+export async function getCodeforcesProblemName(contestId, index) {
+  if (!problemsetCache || Date.now() - problemsetFetchedAt > CACHE_TTL_MS) {
+    const res = await fetch('https://codeforces.com/api/problemset.problems');
+    const data = await res.json();
+    if (data.status !== 'OK') throw new Error(data.comment || 'Codeforces problemset request failed');
+    problemsetCache = new Map(data.result.problems.map((p) => [`${p.contestId}${p.index}`, p.name]));
+    problemsetFetchedAt = Date.now();
+  }
+  return problemsetCache.get(`${contestId}${index}`) || null;
 }
 
 const FETCHERS = {

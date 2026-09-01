@@ -24,6 +24,7 @@ model User {
   pushSubscriptions PushSubscription[]
   learningTopics LearningTopic[]
   codingProfiles CodingProfile[]
+  upsolveProblems UpsolveProblem[]
   budgetSnapshots BudgetSnapshot[]
 
   @@map("users")
@@ -284,6 +285,24 @@ model CodingProfile {
 
   @@unique([userId, platform])
   @@map("coding_profiles")
+}
+
+model UpsolveProblem {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  platform     String   @default("codeforces") // 'codeforces' only for now
+  url          String
+  contestId    Int?     @map("contest_id")
+  problemIndex String?  @map("problem_index") // e.g. "C", "D1"
+  name         String?
+  notes        String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("upsolve_problems")
 }
 
 model GoogleFitToken {

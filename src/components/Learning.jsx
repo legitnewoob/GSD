@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { GraduationCap, Swords, Code2, Network, Brain, ChevronRight } from 'lucide-react';
 import { TopicTracker } from './learning/TopicTracker';
 import { CodingProfiles } from './learning/CodingProfiles';
+import { UpsolveBucket } from './learning/UpsolveBucket';
 import { LearningCategoryPage } from './learning/LearningCategoryPage';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
@@ -29,6 +30,7 @@ function CompetitiveProgrammingPage({ onBack }) {
       </div>
 
       <CodingProfiles />
+      <UpsolveBucket />
       <TopicTracker category="cp" />
     </div>
   );

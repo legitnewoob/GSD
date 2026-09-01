@@ -7,7 +7,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { defaultHabits, defaultCategories } from '../../shared/constants.js';
 import { startReminderScheduler, deliverReminder } from './scheduler.js';
 import { getVapidPublicKey, sendWebPush } from './webpush.js';
-import { getPlatformStats } from './cpStats.js';
+import { getPlatformStats, getCodeforcesProblemName } from './cpStats.js';
 import { syncGoogleFit } from './googleFitSync.js';
 import { startGoogleFitScheduler } from './googleFitScheduler.js';
 import { startBudgetResetScheduler, captureSnapshot } from './budgetScheduler.js';
@@ -997,6 +997,106 @@ app.get('/api/learning/cp-stats', async (req, res) => {
       platforms,
       heatmap: Array.from(combinedHeatmap.entries()).map(([date, count]) => ({ date, count })),
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Upsolve Bucket (Codeforces only) ──────────────────────────────────────────
+
+// Handles /problemset/problem/{id}/{index}, /contest/{id}/problem/{index}, and
+// /gym/{id}/problem/{index}. Gym problems aren't in problemset.problems, so their name
+// can't be auto-looked-up — that's fine, the user can fill it in manually.
+function parseCodeforcesUrl(url) {
+  for (const pattern of [
+    /codeforces\.com\/contest\/(\d+)\/problem\/(\w+)/i,
+    /codeforces\.com\/problemset\/problem\/(\d+)\/(\w+)/i,
+    /codeforces\.com\/gym\/(\d+)\/problem\/(\w+)/i,
+  ]) {
+    const m = url.match(pattern);
+    if (m) return { contestId: parseInt(m[1], 10), index: m[2].toUpperCase() };
+  }
+  return null;
+}
+
+app.get('/api/learning/upsolve', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const problems = await prisma.upsolveProblem.findMany({ where: { userId: user.id }, orderBy: { order: 'asc' } });
+
+    const cfProfile = await prisma.codingProfile.findUnique({ where: { userId_platform: { userId: user.id, platform: 'codeforces' } } });
+    let solvedSet = new Set();
+    if (cfProfile) {
+      const stats = await getPlatformStats('codeforces', cfProfile.username);
+      if (!stats.error) solvedSet = stats.solvedSet;
+    }
+
+    const withStatus = problems.map((p) => ({
+      ...p,
+      solved: p.contestId && p.problemIndex ? solvedSet.has(`${p.contestId}${p.problemIndex}`) : false,
+    }));
+    res.json(withStatus);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/learning/upsolve', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { id, url, name, notes, order } = req.body;
+
+    const existing = id ? await prisma.upsolveProblem.findUnique({ where: { id } }) : null;
+    const parsed = url ? parseCodeforcesUrl(url) : null;
+
+    let resolvedName = name;
+    if (resolvedName === undefined) {
+      resolvedName = existing?.name ?? null;
+      // Only auto-look-up the name on first save (new problem, or url just added) so a
+      // manually-cleared name field doesn't get silently refilled on the next edit.
+      if (parsed && !existing) {
+        try {
+          resolvedName = await getCodeforcesProblemName(parsed.contestId, parsed.index);
+        } catch {
+          resolvedName = null;
+        }
+      }
+    }
+
+    const problem = await prisma.upsolveProblem.upsert({
+      where: { id: id || 'new' },
+      create: {
+        userId: user.id,
+        platform: 'codeforces',
+        url,
+        contestId: parsed?.contestId ?? null,
+        problemIndex: parsed?.index ?? null,
+        name: resolvedName,
+        notes: notes || null,
+        order: order ?? 0,
+      },
+      update: {
+        url: url ?? undefined,
+        contestId: parsed ? parsed.contestId : undefined,
+        problemIndex: parsed ? parsed.index : undefined,
+        name: resolvedName,
+        notes: notes !== undefined ? notes : undefined,
+        order: order ?? undefined,
+      },
+    });
+    res.json(problem);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/learning/upsolve/:id', async (req, res) => {
+  try {
+    await prisma.upsolveProblem.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

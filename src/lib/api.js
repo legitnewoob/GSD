@@ -87,4 +87,7 @@ export const api = {
   saveCpProfile: (payload) => request('/api/learning/cp-profiles', { method: 'POST', body: JSON.stringify(payload) }),
   deleteCpProfile: (platform) => request(`/api/learning/cp-profiles/${platform}`, { method: 'DELETE' }),
   getCpStats: (force) => request(`/api/learning/cp-stats${force ? '?force=true' : ''}`),
+  getUpsolveProblems: () => request('/api/learning/upsolve'),
+  saveUpsolveProblem: (payload) => request('/api/learning/upsolve', { method: 'POST', body: JSON.stringify(payload) }),
+  deleteUpsolveProblem: (id) => request(`/api/learning/upsolve/${id}`, { method: 'DELETE' }),
 };
