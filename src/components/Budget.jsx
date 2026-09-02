@@ -621,7 +621,6 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const bankVal = bankBalance === '' ? null : parseFloat(bankBalance);
   const totalAvailable = (cashVal ?? 0) + (bankVal ?? 0);
   const hasBalanceSet = cashVal !== null || bankVal !== null;
-  const availableAfterCc = totalAvailable - totalCcDebt;
 
   // Days remaining in month (including today)
   const daysLeftIncludingToday = daysInMonth - dayOfMonth + 1;
@@ -629,11 +628,14 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   // Effective daily rate for remaining days (remaining budget ÷ days left including today)
   const effectiveDailyRemaining = daysLeftIncludingToday > 0 ? remainingBudget / daysLeftIncludingToday : 0;
 
-  // Balance after setting aside allocations (what's truly free)
+  // Balance after setting aside unpaid budget allocations (what's truly free) — this is the
+  // base every "how much do I actually have" figure below builds on, so CC debt doesn't get
+  // compared against gross balance while ignoring money already earmarked for rent etc.
   const balanceAfterAllocations = hasBalanceSet ? totalAvailable - totalAllocated : null;
+  const availableAfterCc = (balanceAfterAllocations ?? 0) - totalCcDebt;
 
   // Alerts
-  const ccExceedsBalance = hasBalanceSet && ccDebtDueThisMonth > totalAvailable;
+  const ccExceedsBalance = hasBalanceSet && ccDebtDueThisMonth > (balanceAfterAllocations ?? 0);
   const overBudget = hasBalanceSet && totalAllocated > totalAvailable;
 
   const chartData = entries.map((e) => ({
@@ -682,8 +684,8 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
             <div className="font-black text-red-400 text-sm">CC Debt Exceeds Available Balance</div>
             <div className="text-sm text-game-dim mt-0.5">
               You owe <span className="text-red-400 font-bold">₹{ccDebtDueThisMonth.toLocaleString()}</span> on credit cards due this month but only have{' '}
-              <span className="text-amber-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available.{' '}
-              Shortfall: <span className="text-red-400 font-bold">₹{(ccDebtDueThisMonth - totalAvailable).toLocaleString()}</span>
+              <span className="text-amber-400 font-bold">₹{balanceAfterAllocations.toLocaleString()}</span> free after unpaid budget items.{' '}
+              Shortfall: <span className="text-red-400 font-bold">₹{(ccDebtDueThisMonth - balanceAfterAllocations).toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -697,11 +699,11 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
               {ccDebtDueThisMonth > 0 ? (
                 <>
                   You owe <span className="text-emerald-400 font-bold">₹{ccDebtDueThisMonth.toLocaleString()}</span> on credit cards due this month and have{' '}
-                  <span className="text-amber-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available.{' '}
-                  Gap left after paying: <span className="text-emerald-400 font-bold">₹{(totalAvailable - ccDebtDueThisMonth).toLocaleString()}</span>
+                  <span className="text-amber-400 font-bold">₹{balanceAfterAllocations.toLocaleString()}</span> free after unpaid budget items.{' '}
+                  Gap left after paying: <span className="text-emerald-400 font-bold">₹{(balanceAfterAllocations - ccDebtDueThisMonth).toLocaleString()}</span>
                 </>
               ) : (
-                <>No credit card debt due this month — <span className="text-emerald-400 font-bold">₹{totalAvailable.toLocaleString()}</span> available to spend.</>
+                <>No credit card debt due this month — <span className="text-emerald-400 font-bold">₹{balanceAfterAllocations.toLocaleString()}</span> free to spend after unpaid budget items.</>
               )}
             </div>
           </div>
@@ -863,9 +865,9 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
               <div>
                 <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Total available</div>
                 <div className={`text-2xl font-black ${ccExceedsBalance ? 'text-red-400' : 'text-emerald-400'}`}>₹{totalAvailable.toLocaleString()}</div>
-                {totalCcDebt > 0 && (
+                {(totalCcDebt > 0 || totalAllocated > 0) && (
                   <div className="text-sm text-game-dim mt-0.5">
-                    − ₹{totalCcDebt.toLocaleString()} CC = <span className={availableAfterCc >= 0 ? 'text-emerald-400' : 'text-red-400'}>₹{availableAfterCc.toLocaleString()}</span> free
+                    − ₹{totalAllocated.toLocaleString()} budget − ₹{totalCcDebt.toLocaleString()} CC = <span className={availableAfterCc >= 0 ? 'text-emerald-400' : 'text-red-400'}>₹{availableAfterCc.toLocaleString()}</span> free
                   </div>
                 )}
               </div>
@@ -978,8 +980,8 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
             {hasBalanceSet && ccDebtDueThisMonth > 0 && (
               <div className={`text-xs font-bold ${ccExceedsBalance ? 'text-red-400' : 'text-emerald-400'}`}>
                 {ccExceedsBalance
-                  ? `Short by ₹${(ccDebtDueThisMonth - totalAvailable).toLocaleString()} this month`
-                  : `₹${(totalAvailable - ccDebtDueThisMonth).toLocaleString()} gap this month`}
+                  ? `Short by ₹${(ccDebtDueThisMonth - balanceAfterAllocations).toLocaleString()} this month`
+                  : `₹${(balanceAfterAllocations - ccDebtDueThisMonth).toLocaleString()} gap this month`}
               </div>
             )}
             {totalRewardPoints > 0 && <div className="text-sm font-bold text-amber-400">{totalRewardPoints.toLocaleString()} pts total</div>}
