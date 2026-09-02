@@ -423,7 +423,7 @@ function CreditCardItem({ card, onSave, onDelete }) {
   // as-is so the card is ready for the next cycle's amount to be typed in.
   const handleMarkPaid = async () => {
     setSaving(true);
-    await onSave({ ...card, currentBalance: 0 });
+    await onSave({ ...card, currentBalance: 0, isPayment: true });
     setSaving(false);
   };
 

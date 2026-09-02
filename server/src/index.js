@@ -605,7 +605,7 @@ app.post('/api/budget/credit-cards', async (req, res) => {
     if (!budgetSetting) {
       budgetSetting = await prisma.budgetSetting.create({ data: { userId: user.id } });
     }
-    const { id, name, currentBalance, creditLimit, rewardPoints, dueDate, isPaid, order } = req.body;
+    const { id, name, currentBalance, creditLimit, rewardPoints, dueDate, isPaid, order, isPayment } = req.body;
     const balance = isPaid ? 0 : (currentBalance || 0);
 
     const existing = id ? await prisma.creditCard.findUnique({ where: { id } }) : null;
@@ -616,11 +616,11 @@ app.post('/api/budget/credit-cards', async (req, res) => {
       update: { name, currentBalance: balance, creditLimit: creditLimit || null, rewardPoints: rewardPoints ?? null, dueDate: dueDate ? new Date(dueDate) : null, isPaid: isPaid !== undefined ? isPaid : undefined, order: order ?? 0 },
     });
 
-    // A drop in outstanding balance means the card was actually paid down — that money
-    // really left Bank. A rise (a new charge) is just recorded debt, not a bank transaction,
-    // so only decreases draw from Bank (and can take it negative, same as any real payment).
+    // Only draw from Bank when this save came from the "mark paid" tick (isPayment) —
+    // editing the balance field directly (fixing a typo, a refund, a statement correction)
+    // isn't a real bank transaction and shouldn't move money.
     let balances;
-    if (existing) {
+    if (existing && isPayment) {
       const paidDown = (existing.currentBalance || 0) - balance;
       if (paidDown > 0) balances = await adjustBalance(user.id, 'bank', paidDown);
     }
