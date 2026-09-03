@@ -86,24 +86,19 @@ function SourceToggle({ value, onChange, className = '' }) {
 function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: cat.name, type: cat.type, budgetedAmount: cat.budgetedAmount, spentAmount: cat.spentAmount ?? 0, paymentSource: cat.paymentSource || 'bank' });
-  const [saving, setSaving] = useState(false);
   const [spentEditing, setSpentEditing] = useState(false);
   const [spentInput, setSpentInput] = useState('');
   const [spentSource, setSpentSource] = useState(cat.paymentSource || 'bank');
 
-  const handleSave = async () => {
-    setSaving(true);
-    await onSave({ ...cat, ...form, budgetedAmount: parseFloat(form.budgetedAmount) || 0, spentAmount: parseFloat(form.spentAmount) || 0 });
-    setSaving(false);
+  const handleSave = () => {
+    onSave({ ...cat, ...form, budgetedAmount: parseFloat(form.budgetedAmount) || 0, spentAmount: parseFloat(form.spentAmount) || 0 });
     setEditing(false);
   };
 
-  const handleSaveSpent = async () => {
+  const handleSaveSpent = () => {
     const amount = parseFloat(spentInput);
     if (isNaN(amount)) return;
-    setSaving(true);
-    await onSave({ ...cat, spentAmount: amount, paymentSource: spentSource });
-    setSaving(false);
+    onSave({ ...cat, spentAmount: amount, paymentSource: spentSource });
     setSpentEditing(false);
     setSpentInput('');
   };
@@ -139,7 +134,7 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
         {form.type === 'fixed' && (
           <SourceToggle value={form.paymentSource} onChange={(source) => setForm((f) => ({ ...f, paymentSource: source }))} />
         )}
-        <button onClick={handleSave} disabled={saving} className="p-1.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
+        <button onClick={handleSave} className="p-1.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
           <Check className="w-4 h-4" />
         </button>
         <button onClick={() => setEditing(false)} className="p-1.5 rounded text-game-dim hover:bg-slate-700 transition">
@@ -185,7 +180,7 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
                       autoFocus
                     />
                     <SourceToggle value={spentSource} onChange={setSpentSource} />
-                    <button onClick={handleSaveSpent} disabled={saving} className="p-0.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
+                    <button onClick={handleSaveSpent} className="p-0.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
                       <Check className="w-3 h-3" />
                     </button>
                     <button onClick={() => { setSpentEditing(false); setSpentInput(''); }} className="p-0.5 rounded text-game-dim hover:bg-slate-700 transition">
@@ -220,13 +215,10 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
 function AddCategoryRow({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', type: 'daily', budgetedAmount: '', paymentSource: 'bank' });
-  const [saving, setSaving] = useState(false);
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!form.name.trim()) return;
-    setSaving(true);
-    await onAdd({ name: form.name.trim(), type: form.type, budgetedAmount: parseFloat(form.budgetedAmount) || 0, paymentSource: form.paymentSource });
-    setSaving(false);
+    onAdd({ name: form.name.trim(), type: form.type, budgetedAmount: parseFloat(form.budgetedAmount) || 0, paymentSource: form.paymentSource });
     setForm({ name: '', type: 'daily', budgetedAmount: '', paymentSource: 'bank' });
     setOpen(false);
   };
@@ -266,7 +258,7 @@ function AddCategoryRow({ onAdd }) {
       {form.type === 'fixed' && (
         <SourceToggle value={form.paymentSource} onChange={(source) => setForm((f) => ({ ...f, paymentSource: source }))} />
       )}
-      <button onClick={handleAdd} disabled={saving || !form.name.trim()} className="p-1.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition disabled:opacity-40">
+      <button onClick={handleAdd} disabled={!form.name.trim()} className="p-1.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition disabled:opacity-40">
         <Check className="w-4 h-4" />
       </button>
       <button onClick={() => setOpen(false)} className="p-1.5 rounded text-game-dim hover:bg-slate-700 transition">
@@ -410,21 +402,16 @@ function DueDatePicker({ value, onChange }) {
 function CreditCardItem({ card, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: card.name, currentBalance: card.currentBalance, creditLimit: card.creditLimit || '', rewardPoints: card.rewardPoints ?? '', dueDate: card.dueDate ? card.dueDate.slice(0, 10) : '' });
-  const [saving, setSaving] = useState(false);
 
-  const handleSave = async () => {
-    setSaving(true);
-    await onSave({ ...card, ...form, currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints !== '' ? parseFloat(form.rewardPoints) : null, dueDate: form.dueDate || null });
-    setSaving(false);
+  const handleSave = () => {
+    onSave({ ...card, ...form, currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints !== '' ? parseFloat(form.rewardPoints) : null, dueDate: form.dueDate || null });
     setEditing(false);
   };
 
   // Just zeroes the outstanding balance — name, limit, points, and due date stay
   // as-is so the card is ready for the next cycle's amount to be typed in.
-  const handleMarkPaid = async () => {
-    setSaving(true);
-    await onSave({ ...card, currentBalance: 0, isPayment: true });
-    setSaving(false);
+  const handleMarkPaid = () => {
+    onSave({ ...card, currentBalance: 0, isPayment: true });
   };
 
   const utilizationPct = card.creditLimit ? Math.min(100, (card.currentBalance / card.creditLimit) * 100) : null;
@@ -459,7 +446,7 @@ function CreditCardItem({ card, onSave, onDelete }) {
             <DueDatePicker value={form.dueDate} onChange={(d) => setForm((f) => ({ ...f, dueDate: d }))} />
           </div>
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={saving} className={btnPrimary}>Save</button>
+            <button onClick={handleSave} className={btnPrimary}>Save</button>
             <button onClick={() => setEditing(false)} className={btnGhost}>Cancel</button>
           </div>
         </div>
@@ -498,7 +485,6 @@ function CreditCardItem({ card, onSave, onDelete }) {
           <div className="flex gap-1 shrink-0 items-start">
             <button
               onClick={handleMarkPaid}
-              disabled={saving}
               title="Mark as paid — zeroes balance, keeps everything else for next cycle"
               className="p-1.5 rounded text-game-dim hover:text-emerald-400 hover:bg-emerald-400/10 transition disabled:opacity-40"
             >
@@ -529,13 +515,10 @@ function CreditCardItem({ card, onSave, onDelete }) {
 function AddCreditCardButton({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', currentBalance: '', creditLimit: '', rewardPoints: '', dueDate: '' });
-  const [saving, setSaving] = useState(false);
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!form.name.trim()) return;
-    setSaving(true);
-    await onAdd({ name: form.name.trim(), currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints ? parseFloat(form.rewardPoints) : null, dueDate: form.dueDate || null });
-    setSaving(false);
+    onAdd({ name: form.name.trim(), currentBalance: parseFloat(form.currentBalance) || 0, creditLimit: form.creditLimit ? parseFloat(form.creditLimit) : null, rewardPoints: form.rewardPoints ? parseFloat(form.rewardPoints) : null, dueDate: form.dueDate || null });
     setForm({ name: '', currentBalance: '', creditLimit: '', rewardPoints: '', dueDate: '' });
     setOpen(false);
   };
@@ -565,7 +548,7 @@ function AddCreditCardButton({ onAdd }) {
         <DueDatePicker value={form.dueDate} onChange={(d) => setForm((f) => ({ ...f, dueDate: d }))} />
       </div>
       <div className="flex gap-2">
-        <button onClick={handleAdd} disabled={saving || !form.name.trim()} className={btnPrimary}>Add card</button>
+        <button onClick={handleAdd} disabled={!form.name.trim()} className={btnPrimary}>Add card</button>
         <button onClick={() => setOpen(false)} className={btnGhost}>Cancel</button>
       </div>
     </div>
@@ -646,26 +629,26 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
   const thisMonthEntries = entries.filter((e) => e.date.startsWith(format(new Date(), 'yyyy-MM')));
   const monthTotal = thisMonthEntries.reduce((s, e) => s + (parseFloat(e.money) || 0), 0);
 
-  const handleSaveIncome = async () => {
-    await onSaveBudget({
+  const handleSaveIncome = () => {
+    onSaveBudget({
       monthlyIncome: income === '' ? null : parseFloat(income),
     });
     setIncomeEditing(false);
   };
 
-  const handleSaveBalance = async () => {
-    await onSaveBudget({
+  const handleSaveBalance = () => {
+    onSaveBudget({
       cashBalance: cashBalance === '' ? null : parseFloat(cashBalance),
       bankBalance: bankBalance === '' ? null : parseFloat(bankBalance),
     });
     setBalanceEditing(false);
   };
 
-  const handleQuickAdd = async (amount) => {
+  const handleQuickAdd = (amount) => {
     const current = parseFloat(bankBalance) || 0;
     const newVal = String(current + amount);
     setBankBalance(newVal);
-    await onSaveBudget({ bankBalance: current + amount });
+    onSaveBudget({ bankBalance: current + amount });
     setQuickAdd('');
   };
 
@@ -992,17 +975,7 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
             <CreditCardItem
               key={card.id}
               card={card}
-              onSave={async (updatedCard) => {
-                const wasUnpaid = !card.isPaid;
-                const nowPaid = updatedCard.isPaid;
-                await onSaveCreditCard(updatedCard);
-                if (wasUnpaid && nowPaid && card.currentBalance > 0) {
-                  const currentBank = config.budgetSetting?.bankBalance ?? 0;
-                  const newBank = currentBank - card.currentBalance;
-                  setBankBalance(String(newBank));
-                  await onSaveBudget({ bankBalance: newBank });
-                }
-              }}
+              onSave={onSaveCreditCard}
               onDelete={onDeleteCreditCard}
             />
           ))}

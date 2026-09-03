@@ -280,109 +280,242 @@ export function useLifeRpg() {
     setEntries([]);
   }, [entries]);
 
+  // Interactions should never wait on a network round-trip to feel responsive: every
+  // mutation below updates local state synchronously (optimistic) before the API call
+  // even starts, then reconciles with the server's response (real id, computed fields,
+  // synced balances) once it lands — same pattern as `save()` above for Daily Quest.
+  // A failure rolls the optimistic change back and surfaces it via `error`.
+  const tempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
   const addHabit = useCallback(
-    async (name) => {
-      const habit = await api.saveHabit({ name, order: config.habits.length });
-      setConfig((c) => ({ ...c, habits: [...c.habits, habit] }));
+    (name) => {
+      const optimistic = { id: tempId(), name, order: config.habits.length, xpValue: 5 };
+      setConfig((c) => ({ ...c, habits: [...c.habits, optimistic] }));
+      return api.saveHabit({ name, order: config.habits.length })
+        .then((saved) => {
+          setConfig((c) => ({ ...c, habits: c.habits.map((h) => (h.id === optimistic.id ? saved : h)) }));
+          return saved;
+        })
+        .catch((err) => {
+          setError(err.message);
+          setConfig((c) => ({ ...c, habits: c.habits.filter((h) => h.id !== optimistic.id) }));
+          throw err;
+        });
     },
     [config.habits]
   );
 
-  const updateHabit = useCallback(async (habit) => {
-    const saved = await api.saveHabit(habit);
-    setConfig((c) => ({ ...c, habits: c.habits.map((h) => (h.id === saved.id ? saved : h)) }));
+  const updateHabit = useCallback((habit) => {
+    setConfig((c) => ({ ...c, habits: c.habits.map((h) => (h.id === habit.id ? { ...h, ...habit } : h)) }));
+    return api.saveHabit(habit)
+      .then((saved) => {
+        setConfig((c) => ({ ...c, habits: c.habits.map((h) => (h.id === saved.id ? saved : h)) }));
+        return saved;
+      })
+      .catch((err) => { setError(err.message); throw err; });
   }, []);
 
   const addCategory = useCallback(
-    async (name) => {
-      const category = await api.saveCategory({ name, order: config.categories.length });
-      setConfig((c) => ({ ...c, categories: [...c.categories, category] }));
+    (name) => {
+      const optimistic = { id: tempId(), name, order: config.categories.length };
+      setConfig((c) => ({ ...c, categories: [...c.categories, optimistic] }));
+      return api.saveCategory({ name, order: config.categories.length })
+        .then((saved) => {
+          setConfig((c) => ({ ...c, categories: c.categories.map((x) => (x.id === optimistic.id ? saved : x)) }));
+          return saved;
+        })
+        .catch((err) => {
+          setError(err.message);
+          setConfig((c) => ({ ...c, categories: c.categories.filter((x) => x.id !== optimistic.id) }));
+          throw err;
+        });
     },
     [config.categories]
   );
 
-  const updateCategory = useCallback(async (category) => {
-    const saved = await api.saveCategory(category);
-    setConfig((c) => ({ ...c, categories: c.categories.map((x) => (x.id === saved.id ? saved : x)) }));
+  const updateCategory = useCallback((category) => {
+    setConfig((c) => ({ ...c, categories: c.categories.map((x) => (x.id === category.id ? { ...x, ...category } : x)) }));
+    return api.saveCategory(category)
+      .then((saved) => {
+        setConfig((c) => ({ ...c, categories: c.categories.map((x) => (x.id === saved.id ? saved : x)) }));
+        return saved;
+      })
+      .catch((err) => { setError(err.message); throw err; });
   }, []);
 
-  const deleteCategory = useCallback(async (id) => {
-    await api.deleteCategory(id);
-    setConfig((c) => ({ ...c, categories: c.categories.filter((x) => x.id !== id) }));
+  const deleteCategory = useCallback((id) => {
+    let removed;
+    setConfig((c) => {
+      removed = c.categories.find((x) => x.id === id);
+      return { ...c, categories: c.categories.filter((x) => x.id !== id) };
+    });
+    return api.deleteCategory(id).catch((err) => {
+      setError(err.message);
+      if (removed) setConfig((c) => ({ ...c, categories: [...c.categories, removed] }));
+      throw err;
+    });
   }, []);
 
-  const deleteHabit = useCallback(async (id) => {
-    await api.deleteHabit(id);
-    setConfig((c) => ({ ...c, habits: c.habits.filter((h) => h.id !== id) }));
+  const deleteHabit = useCallback((id) => {
+    let removed;
+    setConfig((c) => {
+      removed = c.habits.find((h) => h.id === id);
+      return { ...c, habits: c.habits.filter((h) => h.id !== id) };
+    });
+    return api.deleteHabit(id).catch((err) => {
+      setError(err.message);
+      if (removed) setConfig((c) => ({ ...c, habits: [...c.habits, removed] }));
+      throw err;
+    });
   }, []);
 
-  const saveBudget = useCallback(async (settings) => {
-    const saved = await api.saveBudget(settings);
-    setConfig((c) => ({ ...c, budgetSetting: saved, budgetCategories: saved.budgetCategories || c.budgetCategories, creditCards: saved.creditCards || c.creditCards }));
+  const saveBudget = useCallback((settings) => {
+    setConfig((c) => ({ ...c, budgetSetting: { ...c.budgetSetting, ...settings } }));
+    return api.saveBudget(settings)
+      .then((saved) => {
+        setConfig((c) => ({ ...c, budgetSetting: saved, budgetCategories: saved.budgetCategories || c.budgetCategories, creditCards: saved.creditCards || c.creditCards }));
+        return saved;
+      })
+      .catch((err) => { setError(err.message); throw err; });
   }, []);
 
   const saveBudgetSettings = saveBudget;
 
-  const saveBudgetCategory = useCallback(async (category) => {
-    const saved = await api.saveBudgetCategory(category);
+  const saveBudgetCategory = useCallback((category) => {
+    const isNew = !category.id;
+    const optimisticId = category.id || tempId();
     setConfig((c) => {
-      const existing = c.budgetCategories.find((x) => x.id === saved.id);
+      const existing = c.budgetCategories.find((x) => x.id === category.id);
       const budgetCategories = existing
-        ? c.budgetCategories.map((x) => (x.id === saved.id ? saved : x))
-        : [...c.budgetCategories, saved];
-      const budgetSetting = withUpdatedBalances(c.budgetSetting, saved);
-      return { ...c, budgetCategories, budgetSetting };
+        ? c.budgetCategories.map((x) => (x.id === category.id ? { ...x, ...category } : x))
+        : [...c.budgetCategories, { ...category, id: optimisticId }];
+      return { ...c, budgetCategories };
     });
-    return saved;
+    return api.saveBudgetCategory(category)
+      .then((saved) => {
+        setConfig((c) => {
+          const budgetCategories = c.budgetCategories.map((x) => (x.id === optimisticId ? saved : x));
+          const budgetSetting = withUpdatedBalances(c.budgetSetting, saved);
+          return { ...c, budgetCategories, budgetSetting };
+        });
+        return saved;
+      })
+      .catch((err) => {
+        setError(err.message);
+        if (isNew) setConfig((c) => ({ ...c, budgetCategories: c.budgetCategories.filter((x) => x.id !== optimisticId) }));
+        throw err;
+      });
   }, []);
 
-  const deleteBudgetCategory = useCallback(async (id) => {
-    const result = await api.deleteBudgetCategory(id);
-    setConfig((c) => ({
-      ...c,
-      budgetCategories: c.budgetCategories.filter((x) => x.id !== id),
-      budgetSetting: withUpdatedBalances(c.budgetSetting, result),
-    }));
-  }, []);
-
-  const saveCreditCard = useCallback(async (card) => {
-    const saved = await api.saveCreditCard(card);
+  const deleteBudgetCategory = useCallback((id) => {
+    let removed;
     setConfig((c) => {
-      const existing = c.creditCards.find((x) => x.id === saved.id);
-      const creditCards = existing
-        ? c.creditCards.map((x) => (x.id === saved.id ? saved : x))
-        : [...c.creditCards, saved];
-      const budgetSetting = withUpdatedBalances(c.budgetSetting, saved);
-      return { ...c, creditCards, budgetSetting };
+      removed = c.budgetCategories.find((x) => x.id === id);
+      return { ...c, budgetCategories: c.budgetCategories.filter((x) => x.id !== id) };
     });
-    return saved;
+    return api.deleteBudgetCategory(id)
+      .then((result) => {
+        setConfig((c) => ({ ...c, budgetSetting: withUpdatedBalances(c.budgetSetting, result) }));
+        return result;
+      })
+      .catch((err) => {
+        setError(err.message);
+        if (removed) setConfig((c) => ({ ...c, budgetCategories: [...c.budgetCategories, removed] }));
+        throw err;
+      });
   }, []);
 
-  const deleteCreditCard = useCallback(async (id) => {
-    await api.deleteCreditCard(id);
-    setConfig((c) => ({ ...c, creditCards: c.creditCards.filter((x) => x.id !== id) }));
+  const saveCreditCard = useCallback((card) => {
+    const isNew = !card.id;
+    const optimisticId = card.id || tempId();
+    setConfig((c) => {
+      const existing = c.creditCards.find((x) => x.id === card.id);
+      const creditCards = existing
+        ? c.creditCards.map((x) => (x.id === card.id ? { ...x, ...card } : x))
+        : [...c.creditCards, { ...card, id: optimisticId }];
+      return { ...c, creditCards };
+    });
+    return api.saveCreditCard(card)
+      .then((saved) => {
+        setConfig((c) => {
+          const creditCards = c.creditCards.map((x) => (x.id === optimisticId ? saved : x));
+          const budgetSetting = withUpdatedBalances(c.budgetSetting, saved);
+          return { ...c, creditCards, budgetSetting };
+        });
+        return saved;
+      })
+      .catch((err) => {
+        setError(err.message);
+        if (isNew) setConfig((c) => ({ ...c, creditCards: c.creditCards.filter((x) => x.id !== optimisticId) }));
+        throw err;
+      });
   }, []);
 
-  const addTodo = useCallback(async (text) => {
-    const todo = await api.addTodo({ text });
-    setConfig((c) => ({ ...c, todos: [...(c.todos || []), todo] }));
+  const deleteCreditCard = useCallback((id) => {
+    let removed;
+    setConfig((c) => {
+      removed = c.creditCards.find((x) => x.id === id);
+      return { ...c, creditCards: c.creditCards.filter((x) => x.id !== id) };
+    });
+    return api.deleteCreditCard(id).catch((err) => {
+      setError(err.message);
+      if (removed) setConfig((c) => ({ ...c, creditCards: [...c.creditCards, removed] }));
+      throw err;
+    });
   }, []);
 
-  const toggleTodo = useCallback(async (id) => {
+  const addTodo = useCallback((text) => {
+    const optimistic = { id: tempId(), text, completed: false };
+    setConfig((c) => ({ ...c, todos: [...(c.todos || []), optimistic] }));
+    return api.addTodo({ text })
+      .then((todo) => {
+        setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === optimistic.id ? todo : t)) }));
+        return todo;
+      })
+      .catch((err) => {
+        setError(err.message);
+        setConfig((c) => ({ ...c, todos: c.todos.filter((t) => t.id !== optimistic.id) }));
+        throw err;
+      });
+  }, []);
+
+  const toggleTodo = useCallback((id) => {
     const todo = config.todos.find((t) => t.id === id);
-    if (!todo) return;
-    const saved = await api.updateTodo(id, { completed: !todo.completed });
-    setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === saved.id ? saved : t)) }));
+    if (!todo) return undefined;
+    setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)) }));
+    return api.updateTodo(id, { completed: !todo.completed })
+      .then((saved) => {
+        setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === saved.id ? saved : t)) }));
+        return saved;
+      })
+      .catch((err) => {
+        setError(err.message);
+        setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === id ? todo : t)) }));
+        throw err;
+      });
   }, [config.todos]);
 
-  const updateTodo = useCallback(async (id, text) => {
-    const saved = await api.updateTodo(id, { text });
-    setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === saved.id ? saved : t)) }));
+  const updateTodo = useCallback((id, text) => {
+    setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === id ? { ...t, text } : t)) }));
+    return api.updateTodo(id, { text })
+      .then((saved) => {
+        setConfig((c) => ({ ...c, todos: c.todos.map((t) => (t.id === saved.id ? saved : t)) }));
+        return saved;
+      })
+      .catch((err) => { setError(err.message); throw err; });
   }, []);
 
-  const deleteTodo = useCallback(async (id) => {
-    await api.deleteTodo(id);
-    setConfig((c) => ({ ...c, todos: c.todos.filter((t) => t.id !== id) }));
+  const deleteTodo = useCallback((id) => {
+    let removed;
+    setConfig((c) => {
+      removed = c.todos.find((t) => t.id === id);
+      return { ...c, todos: c.todos.filter((t) => t.id !== id) };
+    });
+    return api.deleteTodo(id).catch((err) => {
+      setError(err.message);
+      if (removed) setConfig((c) => ({ ...c, todos: [...c.todos, removed] }));
+      throw err;
+    });
   }, []);
 
   return {

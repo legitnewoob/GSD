@@ -11,22 +11,12 @@ const btnGhost = 'border border-slate-600 hover:border-amber-500/50 hover:bg-sla
 function AddProblemForm({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!url.trim()) return;
-    setSaving(true);
-    setError('');
-    try {
-      await onAdd({ url: url.trim() });
-      setUrl('');
-      setOpen(false);
-    } catch (err) {
-      setError(err.message || 'Failed to add problem');
-    } finally {
-      setSaving(false);
-    }
+    onAdd({ url: url.trim() });
+    setUrl('');
+    setOpen(false);
   };
 
   if (!open) {
@@ -51,12 +41,9 @@ function AddProblemForm({ onAdd }) {
         />
         <p className="text-[11px] text-game-dim mt-1">Name is looked up automatically from the link — you can edit it after.</p>
       </div>
-      {error && <p className="text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
-        <button onClick={handleAdd} disabled={saving || !url.trim()} className={btnPrimary}>
-          {saving ? 'Adding…' : 'Add'}
-        </button>
-        <button onClick={() => { setOpen(false); setUrl(''); setError(''); }} className={btnGhost}>Cancel</button>
+        <button onClick={handleAdd} disabled={!url.trim()} className={btnPrimary}>Add</button>
+        <button onClick={() => { setOpen(false); setUrl(''); }} className={btnGhost}>Cancel</button>
       </div>
     </div>
   );
@@ -67,19 +54,14 @@ function ProblemRow({ problem, onSave, onDelete }) {
   const [nameInput, setNameInput] = useState(problem.name || '');
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesInput, setNotesInput] = useState(problem.notes || '');
-  const [saving, setSaving] = useState(false);
 
-  const handleSaveName = async () => {
-    setSaving(true);
-    await onSave({ ...problem, name: nameInput.trim() || null });
-    setSaving(false);
+  const handleSaveName = () => {
+    onSave({ ...problem, name: nameInput.trim() || null });
     setEditingName(false);
   };
 
-  const handleSaveNotes = async () => {
-    setSaving(true);
-    await onSave({ ...problem, notes: notesInput.trim() || null });
-    setSaving(false);
+  const handleSaveNotes = () => {
+    onSave({ ...problem, notes: notesInput.trim() || null });
     setNotesOpen(false);
   };
 
@@ -102,7 +84,7 @@ function ProblemRow({ problem, onSave, onDelete }) {
                 placeholder="Problem name"
                 autoFocus
               />
-              <button onClick={handleSaveName} disabled={saving} className="p-1 rounded text-emerald-400 hover:bg-emerald-400/10 transition"><Check className="w-3.5 h-3.5" /></button>
+              <button onClick={handleSaveName} className="p-1 rounded text-emerald-400 hover:bg-emerald-400/10 transition"><Check className="w-3.5 h-3.5" /></button>
               <button onClick={() => setEditingName(false)} className="p-1 rounded text-game-dim hover:bg-slate-700 transition"><X className="w-3.5 h-3.5" /></button>
             </div>
           ) : (
@@ -129,7 +111,7 @@ function ProblemRow({ problem, onSave, onDelete }) {
                 autoFocus
               />
               <div className="flex gap-2">
-                <button onClick={handleSaveNotes} disabled={saving} className={btnPrimary}>Save note</button>
+                <button onClick={handleSaveNotes} className={btnPrimary}>Save note</button>
                 <button onClick={() => { setNotesInput(problem.notes || ''); setNotesOpen(false); }} className={btnGhost}>Cancel</button>
               </div>
             </div>
@@ -163,19 +145,24 @@ export function UpsolveBucket() {
     load();
   }, []);
 
-  const handleAdd = async (payload) => {
-    await api.saveUpsolveProblem(payload);
-    await load();
+  const handleAdd = (payload) => {
+    const optimistic = { id: `temp-${Date.now()}`, url: payload.url, name: null, notes: null, solved: false, contestId: null, problemIndex: null };
+    setProblems((prev) => [...(prev || []), optimistic]);
+    api.saveUpsolveProblem(payload)
+      .then((saved) => setProblems((prev) => prev.map((p) => (p.id === optimistic.id ? saved : p))))
+      .catch(() => setProblems((prev) => prev.filter((p) => p.id !== optimistic.id)));
   };
 
-  const handleSave = async (problem) => {
-    const saved = await api.saveUpsolveProblem(problem);
-    setProblems((prev) => prev.map((p) => (p.id === saved.id ? { ...p, ...saved } : p)));
+  const handleSave = (problem) => {
+    setProblems((prev) => prev.map((p) => (p.id === problem.id ? { ...p, ...problem } : p)));
+    api.saveUpsolveProblem(problem).then((saved) => {
+      setProblems((prev) => prev.map((p) => (p.id === saved.id ? saved : p)));
+    });
   };
 
-  const handleDelete = async (id) => {
-    await api.deleteUpsolveProblem(id);
+  const handleDelete = (id) => {
     setProblems((prev) => prev.filter((p) => p.id !== id));
+    api.deleteUpsolveProblem(id);
   };
 
   const unsolvedCount = problems?.filter((p) => !p.solved).length ?? 0;
