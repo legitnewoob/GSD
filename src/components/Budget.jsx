@@ -942,8 +942,8 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
               ))}
             </div>
             <div className="text-right text-sm text-game-dim mt-2 pr-3">
-              <span className="text-emerald-400 font-bold">₹{remainingBudget.toFixed(0)} remaining</span>
-              <span className="ml-2 text-amber-400">· ₹{effectiveDailyRemaining.toFixed(0)}/day for {daysLeftIncludingToday} days</span>
+              <span className="text-emerald-400 font-bold">₹{(monthlyDailyPool - totalSpentThisMonth).toFixed(0)} remaining</span>
+              <span className="ml-2 text-amber-400">· ₹{effectiveDailyRemaining.toFixed(0)}/day for {daysLeftIncludingToday} days (locked for today)</span>
             </div>
           </div>
         )}
