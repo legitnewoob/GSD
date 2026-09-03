@@ -589,8 +589,18 @@ app.post('/api/budget/categories', async (req, res) => {
 
 app.delete('/api/budget/categories/:id', async (req, res) => {
   try {
+    const existing = await prisma.budgetCategory.findUnique({ where: { id: req.params.id } });
     await prisma.budgetCategory.update({ where: { id: req.params.id }, data: { isActive: false } });
-    res.json({ ok: true });
+
+    // Deleting a fixed category that's already been (partly) paid shouldn't just make that
+    // spend vanish from tracking — refund whatever was drawn from its payment source back.
+    let balances;
+    if (existing?.type === 'fixed' && existing.spentAmount) {
+      const budgetSetting = await prisma.budgetSetting.findUnique({ where: { id: existing.budgetSettingId } });
+      balances = await adjustBalance(budgetSetting.userId, existing.paymentSource || 'bank', -existing.spentAmount);
+    }
+
+    res.json({ ok: true, bankBalance: balances?.bankBalance, cashBalance: balances?.cashBalance });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

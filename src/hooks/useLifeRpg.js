@@ -337,8 +337,12 @@ export function useLifeRpg() {
   }, []);
 
   const deleteBudgetCategory = useCallback(async (id) => {
-    await api.deleteBudgetCategory(id);
-    setConfig((c) => ({ ...c, budgetCategories: c.budgetCategories.filter((x) => x.id !== id) }));
+    const result = await api.deleteBudgetCategory(id);
+    setConfig((c) => ({
+      ...c,
+      budgetCategories: c.budgetCategories.filter((x) => x.id !== id),
+      budgetSetting: withUpdatedBalances(c.budgetSetting, result),
+    }));
   }, []);
 
   const saveCreditCard = useCallback(async (card) => {
