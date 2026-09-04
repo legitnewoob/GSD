@@ -7,7 +7,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts';
 import {
-  Plus, Trash2, Edit3, Check, X, CreditCard, ChevronDown, ChevronUp, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays, CheckCircle2,
+  Plus, Trash2, Edit3, Check, X, CreditCard, ChevronDown, ChevronUp, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays, CheckCircle2, PlusCircle,
 } from 'lucide-react';
 
 const panelBase = 'bg-game-panel rounded-2xl border border-game-border p-5 shadow-lg';
@@ -83,12 +83,71 @@ function SourceToggle({ value, onChange, className = '' }) {
   );
 }
 
+function AddBalanceModal({ defaultTarget, onClose, onSubmit }) {
+  const [amount, setAmount] = useState('');
+  const [source, setSource] = useState('');
+  const [target, setTarget] = useState(defaultTarget || 'bank');
+
+  const canSubmit = parseFloat(amount) > 0;
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    onSubmit({ amount: parseFloat(amount), source: source.trim() || null, target });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className={`${panelBase} w-full max-w-sm`} onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-black uppercase tracking-wide text-game-text mb-1">Add Money</h3>
+        <p className="text-xs text-game-dim mb-4">Record where it came from so you can look back later.</p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-game-dim uppercase tracking-wide mb-1 block">Amount (₹)</label>
+            <input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              className={inputBase}
+              placeholder="e.g. 5000"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-xs text-game-dim uppercase tracking-wide mb-1 block">Add to</label>
+            <SourceToggle value={target} onChange={setTarget} />
+          </div>
+          <div>
+            <label className="text-xs text-game-dim uppercase tracking-wide mb-1 block">Source (optional)</label>
+            <input
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              className={inputBase}
+              placeholder="e.g. Freelance payment, Cashback, Gift"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={handleSubmit} disabled={!canSubmit} className={btnPrimary}>Add</button>
+          <button onClick={onClose} className={btnGhost}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: cat.name, type: cat.type, budgetedAmount: cat.budgetedAmount, spentAmount: cat.spentAmount ?? 0, paymentSource: cat.paymentSource || 'bank' });
   const [spentEditing, setSpentEditing] = useState(false);
   const [spentInput, setSpentInput] = useState('');
   const [spentSource, setSpentSource] = useState(cat.paymentSource || 'bank');
+  const [addingExpense, setAddingExpense] = useState(false);
+  const [expenseInput, setExpenseInput] = useState('');
+  const [expenseSource, setExpenseSource] = useState(cat.paymentSource || 'bank');
 
   const handleSave = () => {
     onSave({ ...cat, ...form, budgetedAmount: parseFloat(form.budgetedAmount) || 0, spentAmount: parseFloat(form.spentAmount) || 0 });
@@ -101,6 +160,15 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
     onSave({ ...cat, spentAmount: amount, paymentSource: spentSource });
     setSpentEditing(false);
     setSpentInput('');
+  };
+
+  // Adds to the existing spentAmount instead of requiring you to retype the new total.
+  const handleAddExpense = () => {
+    const amount = parseFloat(expenseInput);
+    if (isNaN(amount) || amount <= 0) return;
+    onSave({ ...cat, spentAmount: (cat.spentAmount || 0) + amount, paymentSource: expenseSource });
+    setAddingExpense(false);
+    setExpenseInput('');
   };
 
   // For daily categories, use auto-computed spent from entries; for fixed, use cat.spentAmount
@@ -187,15 +255,43 @@ function CategoryRow({ cat, autoSpent, onSave, onDelete }) {
                       <X className="w-3 h-3" />
                     </button>
                   </div>
+                ) : addingExpense ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      value={expenseInput}
+                      onChange={(e) => setExpenseInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddExpense(); if (e.key === 'Escape') { setAddingExpense(false); setExpenseInput(''); } }}
+                      placeholder="+ Amount"
+                      className="w-20 bg-slate-800 border border-emerald-500/50 rounded px-2 py-0.5 text-xs text-game-text outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                    <SourceToggle value={expenseSource} onChange={setExpenseSource} />
+                    <button onClick={handleAddExpense} className="p-0.5 rounded text-emerald-400 hover:bg-emerald-400/10 transition">
+                      <Check className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => { setAddingExpense(false); setExpenseInput(''); }} className="p-0.5 rounded text-game-dim hover:bg-slate-700 transition">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => { setSpentInput(String(effectiveSpent)); setSpentSource(cat.paymentSource || 'bank'); setSpentEditing(true); }}
-                    className="text-game-dim hover:text-amber-400 transition flex items-center gap-1"
-                    title="Log how much you've spent"
-                  >
-                    Spent: <span className={effectiveSpent > 0 ? 'text-game-text font-bold' : ''}>₹{effectiveSpent.toLocaleString()}</span>
-                    <Edit3 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => { setSpentInput(String(effectiveSpent)); setSpentSource(cat.paymentSource || 'bank'); setSpentEditing(true); }}
+                      className="text-game-dim hover:text-amber-400 transition flex items-center gap-1"
+                      title="Set the exact spent total"
+                    >
+                      Spent: <span className={effectiveSpent > 0 ? 'text-game-text font-bold' : ''}>₹{effectiveSpent.toLocaleString()}</span>
+                      <Edit3 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60" />
+                    </button>
+                    <button
+                      onClick={() => { setExpenseSource(cat.paymentSource || 'bank'); setAddingExpense(true); }}
+                      className="p-0.5 rounded text-game-dim hover:text-emerald-400 hover:bg-emerald-400/10 transition"
+                      title="Add an expense to this category"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )
               ) : (
                 <span className="text-game-dim">Spent: <span className={effectiveSpent > 0 ? 'text-game-text font-bold' : ''}>₹{effectiveSpent.toLocaleString()}</span></span>
@@ -555,13 +651,13 @@ function AddCreditCardButton({ onAdd }) {
   );
 }
 
-export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, onDeleteBudgetCategory, onSaveCreditCard, onDeleteCreditCard }) {
+export function Budget({ config, entries, onSaveBudget, onAddBalanceTopUp, onSaveBudgetCategory, onDeleteBudgetCategory, onSaveCreditCard, onDeleteCreditCard }) {
   const [income, setIncome] = useState(config.budgetSetting?.monthlyIncome || '');
   const [incomeEditing, setIncomeEditing] = useState(false);
   const [cashBalance, setCashBalance] = useState(config.budgetSetting?.cashBalance ?? '');
   const [bankBalance, setBankBalance] = useState(config.budgetSetting?.bankBalance ?? '');
   const [balanceEditing, setBalanceEditing] = useState(false);
-  const [quickAdd, setQuickAdd] = useState('');
+  const [topUpTarget, setTopUpTarget] = useState(null); // null | 'cash' | 'bank' — which modal is open
   const [showChart, setShowChart] = useState(false);
 
   // cashBalance/bankBalance are local drafts (so typing doesn't fight the server), but they
@@ -644,12 +740,9 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
     setBalanceEditing(false);
   };
 
-  const handleQuickAdd = (amount) => {
-    const current = parseFloat(bankBalance) || 0;
-    const newVal = String(current + amount);
-    setBankBalance(newVal);
-    onSaveBudget({ bankBalance: current + amount });
-    setQuickAdd('');
+  const handleAddTopUp = (payload) => {
+    onAddBalanceTopUp(payload);
+    setTopUpTarget(null);
   };
 
   return (
@@ -812,34 +905,47 @@ export function Budget({ config, entries, onSaveBudget, onSaveBudgetCategory, on
         ) : (
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-700">
-              <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Cash</div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-xs text-game-dim uppercase tracking-wide">Cash</div>
+                <button onClick={() => setTopUpTarget('cash')} className="text-game-dim hover:text-emerald-400 transition" title="Add money to Cash">
+                  <PlusCircle className="w-4 h-4" />
+                </button>
+              </div>
               <div className="text-2xl font-black text-emerald-400">
                 {cashVal !== null ? `₹${cashVal.toLocaleString()}` : <span className="text-game-dim text-base">—</span>}
               </div>
             </div>
             <div className="bg-slate-900/60 rounded-xl p-3 border border-slate-700">
-              <div className="text-xs text-game-dim uppercase tracking-wide mb-1">Bank</div>
-              <div className="text-2xl font-black text-emerald-400 mb-2">
-                {bankVal !== null ? `₹${bankVal.toLocaleString()}` : <span className="text-game-dim text-base">—</span>}
-              </div>
-              <div className="flex gap-1.5 items-center">
-                <input
-                  type="number"
-                  value={quickAdd}
-                  onChange={(e) => setQuickAdd(e.target.value)}
-                  placeholder="+ Add"
-                  className="w-20 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-game-text outline-none focus:border-amber-500"
-                />
-                <button
-                  onClick={() => { const n = parseFloat(quickAdd); if (n) handleQuickAdd(n); }}
-                  disabled={!quickAdd || isNaN(parseFloat(quickAdd))}
-                  className="text-xs bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30 px-2 py-1 rounded transition disabled:opacity-30"
-                >
-                  Add
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-xs text-game-dim uppercase tracking-wide">Bank</div>
+                <button onClick={() => setTopUpTarget('bank')} className="text-game-dim hover:text-emerald-400 transition" title="Add money to Bank">
+                  <PlusCircle className="w-4 h-4" />
                 </button>
+              </div>
+              <div className="text-2xl font-black text-emerald-400">
+                {bankVal !== null ? `₹${bankVal.toLocaleString()}` : <span className="text-game-dim text-base">—</span>}
               </div>
             </div>
           </div>
+        )}
+
+        {(config.recentTopUps || []).length > 0 && !balanceEditing && (
+          <div className="mb-4 space-y-1">
+            <div className="text-xs text-game-dim uppercase tracking-wide">Recent additions</div>
+            {config.recentTopUps.slice(0, 4).map((t) => (
+              <div key={t.id} className="flex items-center justify-between text-xs text-game-dim">
+                <span>
+                  <span className="text-emerald-400 font-bold">+₹{t.amount.toLocaleString()}</span> to {t.target === 'cash' ? 'Cash' : 'Bank'}
+                  {t.source && <span className="text-game-dim"> · {t.source}</span>}
+                </span>
+                <span>{new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {topUpTarget && (
+          <AddBalanceModal defaultTarget={topUpTarget} onClose={() => setTopUpTarget(null)} onSubmit={handleAddTopUp} />
         )}
 
         {hasBalanceSet && !balanceEditing && (

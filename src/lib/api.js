@@ -59,6 +59,8 @@ export const api = {
   deleteCategory: (id) => request(`/api/categories/${id}`, { method: 'DELETE' }),
   getBudget: () => request('/api/budget'),
   saveBudget: (payload) => request('/api/budget', { method: 'POST', body: JSON.stringify(payload) }),
+  addBalanceTopUp: (payload) => request('/api/budget/topup', { method: 'POST', body: JSON.stringify(payload) }),
+  getBalanceTopUps: (limit) => request(`/api/budget/topups${limit ? `?limit=${limit}` : ''}`),
   saveBudgetCategory: (payload) => request('/api/budget/categories', { method: 'POST', body: JSON.stringify(payload) }),
   deleteBudgetCategory: (id) => request(`/api/budget/categories/${id}`, { method: 'DELETE' }),
   saveCreditCard: (payload) => request('/api/budget/credit-cards', { method: 'POST', body: JSON.stringify(payload) }),

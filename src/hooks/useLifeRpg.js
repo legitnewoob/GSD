@@ -106,7 +106,7 @@ function withUpdatedBalances(budgetSetting, saved) {
 }
 
 export function useLifeRpg() {
-  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null, budgetCategories: [], creditCards: [], todos: [] });
+  const [config, setConfig] = useState({ habits: [], categories: [], budgetSetting: null, budgetCategories: [], creditCards: [], todos: [], recentTopUps: [] });
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -119,7 +119,7 @@ export function useLifeRpg() {
       try {
         // Salary auto-crediting runs server-side hourly (last working day of the month,
         // self-healing any missed month) — see server/src/budgetScheduler.js.
-        const [cfg, rawEntries] = await Promise.all([api.getConfig(), api.getEntries()]);
+        const [cfg, rawEntries, recentTopUps] = await Promise.all([api.getConfig(), api.getEntries(), api.getBalanceTopUps()]);
         if (cancelled) return;
 
         setConfig({
@@ -129,6 +129,7 @@ export function useLifeRpg() {
           budgetCategories: cfg.budgetSetting?.budgetCategories || [],
           creditCards: cfg.budgetSetting?.creditCards || [],
           todos: cfg.todos || [],
+          recentTopUps,
         });
         setEntries(rawEntries.map(fromApiEntry));
       } catch (err) {
@@ -381,6 +382,25 @@ export function useLifeRpg() {
 
   const saveBudgetSettings = saveBudget;
 
+  const addBalanceTopUp = useCallback((payload) => {
+    const field = payload.target === 'cash' ? 'cashBalance' : 'bankBalance';
+    setConfig((c) => ({
+      ...c,
+      budgetSetting: { ...c.budgetSetting, [field]: (c.budgetSetting?.[field] || 0) + payload.amount },
+      recentTopUps: [{ ...payload, id: tempId(), createdAt: new Date().toISOString() }, ...(c.recentTopUps || [])].slice(0, 10),
+    }));
+    return api.addBalanceTopUp(payload)
+      .then((saved) => {
+        setConfig((c) => ({
+          ...c,
+          budgetSetting: withUpdatedBalances(c.budgetSetting, saved),
+          recentTopUps: [saved, ...(c.recentTopUps || []).filter((t) => !t.id.startsWith('temp-'))].slice(0, 10),
+        }));
+        return saved;
+      })
+      .catch((err) => { setError(err.message); throw err; });
+  }, []);
+
   const saveBudgetCategory = useCallback((category) => {
     const isNew = !category.id;
     const optimisticId = category.id || tempId();
@@ -538,6 +558,7 @@ export function useLifeRpg() {
     deleteCategory,
     saveBudget,
     saveBudgetSettings,
+    addBalanceTopUp,
     saveBudgetCategory,
     deleteBudgetCategory,
     saveCreditCard,

@@ -39,6 +39,7 @@ function AppContent() {
     updateCategory,
     deleteCategory,
     saveBudget,
+    addBalanceTopUp,
     saveBudgetCategory,
     deleteBudgetCategory,
     saveCreditCard,
@@ -122,6 +123,7 @@ function AppContent() {
         config={config}
         entries={entries}
         onSaveBudget={saveBudget}
+        onAddBalanceTopUp={addBalanceTopUp}
         onSaveBudgetCategory={saveBudgetCategory}
         onDeleteBudgetCategory={deleteBudgetCategory}
         onSaveCreditCard={saveCreditCard}

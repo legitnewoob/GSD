@@ -542,6 +542,44 @@ app.post('/api/budget', async (req, res) => {
   }
 });
 
+// Records a manual top-up (salary bonus, cashback, gift, etc.) with its source, and credits
+// the amount to whichever balance it landed in — a proper log instead of silently editing
+// the raw balance number with no record of where it came from.
+app.post('/api/budget/topup', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const { amount, source, target } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'Amount must be positive' });
+    if (!['cash', 'bank'].includes(target)) return res.status(400).json({ error: 'Invalid target' });
+
+    const topUp = await prisma.balanceTopUp.create({
+      data: { userId: user.id, amount, source: source || null, target },
+    });
+    const balances = await adjustBalance(user.id, target, -amount);
+
+    res.json({ ...topUp, bankBalance: balances?.bankBalance, cashBalance: balances?.cashBalance });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/budget/topups', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const topUps = await prisma.balanceTopUp.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    res.json(topUps);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Budget Categories
 app.post('/api/budget/categories', async (req, res) => {
   try {

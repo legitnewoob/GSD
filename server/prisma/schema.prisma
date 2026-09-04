@@ -26,6 +26,7 @@ model User {
   codingProfiles CodingProfile[]
   upsolveProblems UpsolveProblem[]
   budgetSnapshots BudgetSnapshot[]
+  balanceTopUps BalanceTopUp[]
 
   @@map("users")
 }
@@ -303,6 +304,19 @@ model UpsolveProblem {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("upsolve_problems")
+}
+
+model BalanceTopUp {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  amount    Float
+  source    String?  // e.g. "Freelance payment", "Cashback", "Gift" — where the money came from
+  target    String   // 'cash' | 'bank'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("balance_topups")
 }
 
 model GoogleFitToken {
