@@ -1,5 +1,5 @@
 import { format, isSameDay, parseISO, subDays } from 'date-fns';
-import { Flame } from 'lucide-react';
+import { Check, Flame, Sparkles } from 'lucide-react';
 
 const DAYS_SHOWN = 14;
 
@@ -44,51 +44,76 @@ export function LogStreak({ entries, selectedDate, onSelectDate }) {
     days.push({ date, dateStr, logged: isManuallyLogged(entryByDate.get(dateStr)) });
   }
   const loggedCount = days.filter((d) => d.logged).length;
+  const progress = Math.round((loggedCount / DAYS_SHOWN) * 100);
 
   return (
-    <div className="bg-game-panel rounded-2xl border border-game-border p-4 shadow-lg">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-y-1">
-        <div className="flex items-center gap-1.5">
-          {streak > 0 ? (
-            <>
-              <Flame className="w-4 h-4 text-amber-400" />
-              <span className="text-sm font-black text-amber-400">{streak}-day streak</span>
-            </>
-          ) : (
-            <span className="text-sm font-bold text-game-dim">No active streak</span>
-          )}
+    <section className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-game-panel p-4 shadow-lg sm:p-5" aria-label="Logging streak">
+      <div className="pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-amber-400/[0.07] blur-2xl" />
+      <div className="relative">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${streak > 0 ? 'border-amber-400/40 bg-amber-400/10 shadow-[0_0_20px_rgba(245,158,11,0.16)]' : 'border-slate-700 bg-slate-800'}`}>
+              <Flame className={`h-5 w-5 ${streak > 0 ? 'text-amber-400' : 'text-slate-500'}`} aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-game-dim">Logging streak</p>
+              {streak > 0 ? (
+                <p className="mt-0.5 text-lg font-black leading-tight text-amber-400 sm:text-xl">{streak} {streak === 1 ? 'day' : 'days'} in a row</p>
+              ) : (
+                <p className="mt-0.5 text-lg font-black leading-tight text-game-text sm:text-xl">Start today&apos;s run</p>
+              )}
+            </div>
+          </div>
+          <div className="shrink-0 rounded-lg border border-slate-700/80 bg-slate-950/30 px-2.5 py-1.5 text-right">
+            <span className="block text-sm font-black leading-none text-game-text">{loggedCount}<span className="text-game-dim">/{DAYS_SHOWN}</span></span>
+            <span className="mt-1 block text-[9px] font-bold uppercase tracking-wider text-game-dim">days logged</span>
+          </div>
         </div>
-        <span className="text-xs text-game-dim">
-          <span className="font-bold text-game-text">{loggedCount}</span> of {DAYS_SHOWN} days logged
-        </span>
-      </div>
-      <div className="grid grid-cols-7 gap-1.5">
-        {days.map(({ date, dateStr, logged }) => {
-          const isToday = dateStr === todayStr;
-          const isSelected = isSameDay(date, parseISO(selectedDate));
-          return (
-            <div key={dateStr} className="flex flex-col items-center gap-1">
-              <span className="text-[9px] font-bold text-game-dim uppercase">{format(date, 'EEEEE')}</span>
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-game-dim">
+            <span>Last 14 days</span>
+            <span className="text-amber-400">{progress}% complete</span>
+          </div>
+          <div className="flex h-1.5 gap-1" aria-hidden="true">
+            {days.map(({ dateStr, logged }) => (
+              <span key={dateStr} className={`h-full flex-1 rounded-full ${logged ? 'bg-emerald-400' : 'bg-slate-700'}`} />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-7 gap-1.5 sm:gap-2">
+          {days.map(({ date, dateStr, logged }) => {
+            const isToday = dateStr === todayStr;
+            const isSelected = isSameDay(date, parseISO(selectedDate));
+            const label = format(date, 'EEEE, MMMM d');
+            return (
               <button
+                key={dateStr}
                 type="button"
                 onClick={() => onSelectDate(date)}
-                title={format(date, 'EEEE, MMMM d')}
+                title={label}
+                aria-label={`${label}${logged ? ', logged' : ', not logged'}${isToday ? ', today' : ''}`}
+                aria-pressed={isSelected}
                 className={[
-                  'w-full aspect-square rounded-lg flex items-center justify-center text-xs font-black transition border',
+                  'group relative flex min-w-0 flex-col items-center rounded-xl border px-1 py-2 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-game-panel',
                   logged
-                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 hover:bg-emerald-400'
+                    ? 'border-emerald-400/25 bg-emerald-400/[0.09] text-emerald-300 hover:-translate-y-0.5 hover:border-emerald-400/60 hover:bg-emerald-400/[0.15]'
                     : isToday
-                      ? 'bg-slate-900 text-amber-400 border-dashed border-amber-500/60 hover:bg-slate-800'
-                      : 'bg-slate-800/60 text-game-dim border-transparent hover:bg-slate-700',
+                      ? 'border-dashed border-amber-400/60 bg-amber-400/[0.06] text-amber-300 hover:-translate-y-0.5 hover:bg-amber-400/[0.12]'
+                      : 'border-slate-800 bg-slate-900/40 text-game-dim hover:-translate-y-0.5 hover:border-slate-600 hover:bg-slate-800',
                   isSelected ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-game-panel' : '',
                 ].join(' ')}
               >
-                {format(date, 'd')}
+                <span className={`text-[9px] font-black uppercase tracking-wide ${isToday ? 'text-amber-400' : 'text-game-dim'}`}>{isToday ? 'Now' : format(date, 'EEE')}</span>
+                <span className="mt-0.5 text-sm font-black leading-none">{format(date, 'd')}</span>
+                <span className={`mt-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ${logged ? 'bg-emerald-400 text-slate-950' : isToday ? 'border border-amber-400/80' : 'bg-slate-700/80'}`}>
+                  {logged ? <Check className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" /> : isToday ? <Sparkles className="h-2 w-2" aria-hidden="true" /> : null}
+                </span>
               </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
