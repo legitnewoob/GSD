@@ -104,6 +104,7 @@ function AppContent() {
         <DailyJournal
           config={config}
           entry={fallbackEntry}
+          entries={entries}
           onSave={handleSave}
           onDateChange={handleDateChange}
           onAddHabit={addHabit}

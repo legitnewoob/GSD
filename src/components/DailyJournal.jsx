@@ -16,6 +16,7 @@ import {
 } from 'date-fns';
 import { MOOD_OPTIONS, ENERGY_OPTIONS, POWER_OPTIONS, getHabitGroup, HABIT_GROUP_ORDER } from '../utils/constants';
 import { Check, ChevronLeft, ChevronRight, Sword, Heart, Zap, Moon, Coins, Footprints, Scroll, Plus, Trash2, CalendarDays } from 'lucide-react';
+import { LogStreak } from './LogStreak';
 
 const LEVEL_COLORS = [
   'bg-red-900/40 border-red-700/60 text-red-400',
@@ -256,6 +257,7 @@ function QuestDatePicker({ value, onChange }) {
 export function DailyJournal({
   config,
   entry,
+  entries,
   onSave,
   onDateChange,
   onAddHabit,
@@ -342,6 +344,8 @@ export function DailyJournal({
       <div className="sticky top-2 z-30 flex justify-end">
         <QuestDatePicker value={draft.date} onChange={onDateChange} />
       </div>
+
+      <LogStreak entries={entries} selectedDate={draft.date} onSelectDate={onDateChange} />
 
       <div className={`${panelBase} relative overflow-hidden`}>
         <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
