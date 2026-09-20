@@ -18,17 +18,15 @@ const btnGhost = 'border border-slate-600 hover:border-amber-500/50 hover:bg-sla
 function AddProblemForm({ onAdd }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
-  const [revisit, setRevisit] = useState(false);
 
   const reset = () => {
     setUrl('');
-    setRevisit(false);
     setOpen(false);
   };
 
   const handleAdd = () => {
     if (!url.trim()) return;
-    onAdd({ url: url.trim(), ...(revisit ? { revisit: true } : {}) });
+    onAdd({ url: url.trim() });
     reset();
   };
 
@@ -54,10 +52,6 @@ function AddProblemForm({ onAdd }) {
         />
         <p className="text-[11px] text-game-dim mt-1">Name is looked up automatically from the link — you can edit it after.</p>
       </div>
-      <label className="flex items-center gap-2 text-xs text-game-dim cursor-pointer">
-        <input type="checkbox" checked={revisit} onChange={(e) => setRevisit(e.target.checked)} className="accent-amber-500" />
-        Revisit once in {REVISIT_DAYS} days, even if solved by then
-      </label>
       <div className="flex gap-2">
         <button onClick={handleAdd} disabled={!url.trim()} className={btnPrimary}>Add</button>
         <button onClick={reset} className={btnGhost}>Cancel</button>
@@ -144,14 +138,16 @@ function ProblemRow({ problem, onSave, onDelete }) {
             </button>
           )}
         </div>
+        {(problem.solved || problem.revisitAt) && (
         <button
           onClick={handleToggleRevisit}
-          title={problem.revisitAt ? 'Click to cancel the revisit reminder' : `Remind me to revisit this in ${REVISIT_DAYS} days (once, even if solved)`}
+          title={problem.revisitAt ? 'Click to cancel the revisit reminder' : `Solved — remind me to revisit it in ${REVISIT_DAYS} days (once)`}
           className={`shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg border transition ${problem.revisitAt ? 'border-amber-500/60 bg-amber-500/15 text-amber-400' : 'border-slate-600 text-game-dim hover:border-amber-500/50 hover:text-amber-400'}`}
         >
           <Repeat className="w-3 h-3" />
           {problem.revisitAt ? `Revisit ${revisitDateLabel(problem.revisitAt)}` : 'Revisit'}
         </button>
+        )}
         <button onClick={() => onDelete(problem.id)} className="p-1.5 rounded text-game-dim hover:text-red-400 hover:bg-red-400/10 transition shrink-0 opacity-0 group-hover:opacity-100">
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -173,7 +169,7 @@ export function UpsolveBucket() {
   }, []);
 
   const handleAdd = (payload) => {
-    const optimistic = { id: `temp-${Date.now()}`, url: payload.url, name: null, notes: null, solved: false, contestId: null, problemIndex: null, revisitAt: payload.revisit ? new Date().toISOString() : null };
+    const optimistic = { id: `temp-${Date.now()}`, url: payload.url, name: null, notes: null, solved: false, contestId: null, problemIndex: null, revisitAt: null };
     setProblems((prev) => [...(prev || []), optimistic]);
     api.saveUpsolveProblem(payload)
       .then((saved) => setProblems((prev) => prev.map((p) => (p.id === optimistic.id ? saved : p))))
