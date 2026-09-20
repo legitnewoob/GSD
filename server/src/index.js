@@ -12,6 +12,7 @@ import { syncGoogleFit } from './googleFitSync.js';
 import { startGoogleFitScheduler } from './googleFitScheduler.js';
 import { startBudgetResetScheduler, captureSnapshot } from './budgetScheduler.js';
 import { startCpAutoCheckScheduler } from './cpAutoCheckScheduler.js';
+import { startUpsolveReminderScheduler, sendUpsolveReminder } from './upsolveReminder.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -1141,6 +1142,19 @@ app.post('/api/learning/upsolve', async (req, res) => {
   }
 });
 
+// Trial run of the scheduled Telegram reminder: ignores the 7-day wait and lists every
+// unsolved problem in the bucket.
+app.post('/api/learning/upsolve/reminder/test', async (req, res) => {
+  try {
+    const user = await getOrCreateUser(req.userId);
+    const result = await sendUpsolveReminder(prisma, user.id, { trial: true });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/learning/upsolve/:id', async (req, res) => {
   try {
     await prisma.upsolveProblem.delete({ where: { id: req.params.id } });
@@ -1270,4 +1284,5 @@ app.listen(PORT, () => {
   startGoogleFitScheduler(prisma);
   startBudgetResetScheduler(prisma);
   startCpAutoCheckScheduler(prisma);
+  startUpsolveReminderScheduler(prisma);
 });
