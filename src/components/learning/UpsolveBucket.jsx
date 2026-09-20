@@ -115,11 +115,6 @@ function ProblemRow({ problem, onSave, onDelete }) {
               </button>
             </div>
           )}
-          {problem.revisitAt && (
-            <p className="text-[11px] text-amber-400 mt-0.5 flex items-center gap-1">
-              <Repeat className="w-3 h-3" /> Revisit reminder from {revisitDateLabel(problem.revisitAt)} (once, even if solved)
-            </p>
-          )}
           <a href={problem.url} target="_blank" rel="noopener noreferrer" className="text-xs text-game-dim hover:text-amber-400 transition flex items-center gap-1 mt-0.5 truncate">
             <ExternalLink className="w-3 h-3 shrink-0" /> <span className="truncate">{problem.url}</span>
           </a>
@@ -151,10 +146,11 @@ function ProblemRow({ problem, onSave, onDelete }) {
         </div>
         <button
           onClick={handleToggleRevisit}
-          title={problem.revisitAt ? 'Cancel revisit reminder' : `Remind me to revisit in ${REVISIT_DAYS} days (once, even if solved)`}
-          className={`p-1.5 rounded transition shrink-0 ${problem.revisitAt ? 'text-amber-400 bg-amber-400/10' : 'text-game-dim hover:text-amber-400 hover:bg-amber-400/10 opacity-0 group-hover:opacity-100'}`}
+          title={problem.revisitAt ? 'Click to cancel the revisit reminder' : `Remind me to revisit this in ${REVISIT_DAYS} days (once, even if solved)`}
+          className={`shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg border transition ${problem.revisitAt ? 'border-amber-500/60 bg-amber-500/15 text-amber-400' : 'border-slate-600 text-game-dim hover:border-amber-500/50 hover:text-amber-400'}`}
         >
-          <Repeat className="w-3.5 h-3.5" />
+          <Repeat className="w-3 h-3" />
+          {problem.revisitAt ? `Revisit ${revisitDateLabel(problem.revisitAt)}` : 'Revisit'}
         </button>
         <button onClick={() => onDelete(problem.id)} className="p-1.5 rounded text-game-dim hover:text-red-400 hover:bg-red-400/10 transition shrink-0 opacity-0 group-hover:opacity-100">
           <Trash2 className="w-3.5 h-3.5" />
