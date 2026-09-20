@@ -298,6 +298,10 @@ model UpsolveProblem {
   name         String?
   notes        String?
   order        Int      @default(0)
+  // One-time "revisit" tick: 7 days after it's set, the problem is reminded on Telegram
+  // even if solved, for two shifts (12am + 12pm), then the tick clears itself.
+  revisitAt    DateTime? @map("revisit_at")
+  revisitSends Int      @default(0) @map("revisit_sends")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

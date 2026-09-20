@@ -1095,7 +1095,7 @@ app.get('/api/learning/upsolve', async (req, res) => {
 app.post('/api/learning/upsolve', async (req, res) => {
   try {
     const user = await getOrCreateUser(req.userId);
-    const { id, url, name, notes, order } = req.body;
+    const { id, url, name, notes, order, revisit } = req.body;
 
     const existing = id ? await prisma.upsolveProblem.findUnique({ where: { id } }) : null;
     const parsed = url ? parseCodeforcesUrl(url) : null;
@@ -1125,6 +1125,7 @@ app.post('/api/learning/upsolve', async (req, res) => {
         name: resolvedName,
         notes: notes || null,
         order: order ?? 0,
+        revisitAt: revisit ? new Date() : null,
       },
       update: {
         url: url ?? undefined,
@@ -1133,6 +1134,10 @@ app.post('/api/learning/upsolve', async (req, res) => {
         name: resolvedName,
         notes: notes !== undefined ? notes : undefined,
         order: order ?? undefined,
+        // Ticking starts the 7-day wait; unticking (or re-saving) resets the shift count.
+        // `revisit` is only sent by the toggle, so ordinary edits leave the tick alone.
+        ...(revisit === true && !existing?.revisitAt ? { revisitAt: new Date(), revisitSends: 0 } : {}),
+        ...(revisit === false ? { revisitAt: null, revisitSends: 0 } : {}),
       },
     });
     res.json(problem);
