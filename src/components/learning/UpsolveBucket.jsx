@@ -141,7 +141,7 @@ function ProblemRow({ problem, onSave, onDelete }) {
         {(problem.solved || problem.revisitAt) && (
         <button
           onClick={handleToggleRevisit}
-          title={problem.revisitAt ? 'Click to cancel the revisit reminder' : `Solved — remind me to revisit it in ${REVISIT_DAYS} days (once)`}
+          title={problem.revisitAt ? 'Click to cancel — reminders stop on their own once you re-solve it' : `Remind me to solve it again — starts in ${REVISIT_DAYS} days, stops once you re-solve it`}
           className={`shrink-0 flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg border transition ${problem.revisitAt ? 'border-amber-500/60 bg-amber-500/15 text-amber-400' : 'border-slate-600 text-game-dim hover:border-amber-500/50 hover:text-amber-400'}`}
         >
           <Repeat className="w-3 h-3" />

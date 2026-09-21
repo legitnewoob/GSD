@@ -15,6 +15,7 @@ async function fetchCodeforcesStats(handle) {
   if (data.status !== 'OK') throw new Error(data.comment || 'Codeforces request failed');
 
   const solved = new Set();
+  const solvedAt = new Map(); // "{contestId}{index}" -> unix seconds of the latest accepted submission
   const heatmap = new Map();
   let lastSolvedSeconds = null;
 
@@ -22,6 +23,7 @@ async function fetchCodeforcesStats(handle) {
     if (sub.verdict !== 'OK') continue;
     const key = `${sub.problem.contestId}${sub.problem.index}`;
     solved.add(key);
+    if (!solvedAt.get(key) || sub.creationTimeSeconds > solvedAt.get(key)) solvedAt.set(key, sub.creationTimeSeconds);
     addToHeatmap(heatmap, toDateStr(sub.creationTimeSeconds));
     if (!lastSolvedSeconds || sub.creationTimeSeconds > lastSolvedSeconds) {
       lastSolvedSeconds = sub.creationTimeSeconds;
@@ -33,6 +35,7 @@ async function fetchCodeforcesStats(handle) {
     lastSolvedDate: lastSolvedSeconds ? toDateStr(lastSolvedSeconds) : null,
     heatmap,
     solvedSet: solved, // Set of "{contestId}{index}" — used to live-check upsolve bucket status
+    solvedAt, // latest accepted submission time per problem — used for the revisit tick
   };
 }
 

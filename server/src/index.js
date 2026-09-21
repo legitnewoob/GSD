@@ -12,7 +12,7 @@ import { syncGoogleFit } from './googleFitSync.js';
 import { startGoogleFitScheduler } from './googleFitScheduler.js';
 import { startBudgetResetScheduler, captureSnapshot } from './budgetScheduler.js';
 import { startCpAutoCheckScheduler } from './cpAutoCheckScheduler.js';
-import { startUpsolveReminderScheduler, sendUpsolveReminder } from './upsolveReminder.js';
+import { startUpsolveReminderScheduler, sendUpsolveReminder, isRevisitDone, clearRevisits } from './upsolveReminder.js';
 
 const defaultBudgetCategories = [
   { name: 'Rent', type: 'fixed', budgetedAmount: 18000, order: 0 },
@@ -1076,13 +1076,22 @@ app.get('/api/learning/upsolve', async (req, res) => {
 
     const cfProfile = await prisma.codingProfile.findUnique({ where: { userId_platform: { userId: user.id, platform: 'codeforces' } } });
     let solvedSet = new Set();
+    let solvedAt = new Map();
     if (cfProfile) {
       const stats = await getPlatformStats('codeforces', cfProfile.username);
-      if (!stats.error) solvedSet = stats.solvedSet;
+      if (!stats.error) {
+        solvedSet = stats.solvedSet;
+        solvedAt = stats.solvedAt;
+      }
     }
+
+    // A revisit tick is finished once the problem is accepted again after the tick.
+    const revisitDoneIds = problems.filter((p) => isRevisitDone(p, solvedAt)).map((p) => p.id);
+    await clearRevisits(prisma, revisitDoneIds);
 
     const withStatus = problems.map((p) => ({
       ...p,
+      revisitAt: revisitDoneIds.includes(p.id) ? null : p.revisitAt,
       solved: p.contestId && p.problemIndex ? solvedSet.has(`${p.contestId}${p.problemIndex}`) : false,
     }));
     res.json(withStatus);
